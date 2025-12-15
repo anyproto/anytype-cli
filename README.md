@@ -180,6 +180,11 @@ anytype space join <invite-link>
 anytype space leave <space-id>
 ```
 
+#### Self-hosted networks
+- Set a default network for joins: `anytype config set networkId <network-id>`
+- Join with a self-hosted invite link: `anytype space join https://<host>/<cid>#<key>`
+- Override per-call if needed: `anytype space join --network <network-id> https://<host>/<cid>#<key>`
+
 ## Development
 
 ### Project Structure

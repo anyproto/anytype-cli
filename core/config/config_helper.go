@@ -48,6 +48,28 @@ func SetTechSpaceIdToConfig(techSpaceId string) error {
 	return configMgr.SetTechSpaceId(techSpaceId)
 }
 
+func GetNetworkIdFromConfig() (string, error) {
+	configMgr := GetConfigManager()
+	if err := configMgr.Load(); err != nil {
+		return "", fmt.Errorf("failed to load config: %w", err)
+	}
+
+	cfg := configMgr.Get()
+	if cfg.NetworkId == "" {
+		return "", fmt.Errorf("no network Id found in config")
+	}
+
+	return cfg.NetworkId, nil
+}
+
+func SetNetworkIdToConfig(networkId string) error {
+	configMgr := GetConfigManager()
+	if err := configMgr.Load(); err != nil {
+		return fmt.Errorf("failed to load config: %w", err)
+	}
+	return configMgr.SetNetworkId(networkId)
+}
+
 func LoadStoredConfig() (*Config, error) {
 	configMgr := GetConfigManager()
 	if err := configMgr.Load(); err != nil {

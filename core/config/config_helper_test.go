@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 )
 
@@ -15,6 +16,11 @@ func setupTestHome(t *testing.T) string {
 	}
 	t.Cleanup(func() { os.RemoveAll(tempDir) })
 	t.Setenv("HOME", tempDir)
+
+	// Reset the singleton so GetConfigManager uses the test HOME-based path.
+	instance = nil
+	once = sync.Once{}
+
 	return tempDir
 }
 
@@ -75,5 +81,38 @@ func TestLoadStoredConfig(t *testing.T) {
 			t.Logf("LoadStoredConfig() loaded config with AccountId=%v, TechSpaceId=%v",
 				cfg.AccountId, cfg.TechSpaceId)
 		}
+	}
+}
+
+func TestNetworkIdHelpers(t *testing.T) {
+	tempDir := setupTestHome(t)
+
+	configPath := filepath.Join(tempDir, ".anytype", "config.json")
+	if err := os.MkdirAll(filepath.Dir(configPath), 0755); err != nil {
+		t.Fatalf("Failed to create config directory: %v", err)
+	}
+
+	if err := os.WriteFile(configPath, []byte(`{"networkId":"net-123"}`), 0644); err != nil {
+		t.Fatalf("Failed to write test config: %v", err)
+	}
+
+	networkId, err := GetNetworkIdFromConfig()
+	if err != nil {
+		t.Fatalf("GetNetworkIdFromConfig() returned error: %v", err)
+	}
+	if networkId != "net-123" {
+		t.Fatalf("GetNetworkIdFromConfig() = %v, want net-123", networkId)
+	}
+
+	if err := SetNetworkIdToConfig("net-456"); err != nil {
+		t.Fatalf("SetNetworkIdToConfig() returned error: %v", err)
+	}
+
+	networkId, err = GetNetworkIdFromConfig()
+	if err != nil {
+		t.Fatalf("GetNetworkIdFromConfig() after set returned error: %v", err)
+	}
+	if networkId != "net-456" {
+		t.Fatalf("GetNetworkIdFromConfig() = %v, want net-456", networkId)
 	}
 }

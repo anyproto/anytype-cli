@@ -15,12 +15,16 @@ func NewGetCmd() *cobra.Command {
 			if len(args) == 0 {
 				accountId, _ := config.GetAccountIdFromConfig()
 				techSpaceId, _ := config.GetTechSpaceIdFromConfig()
+				networkId, _ := config.GetNetworkIdFromConfig()
 
 				if accountId != "" {
 					output.Info("accountId: %s", accountId)
 				}
 				if techSpaceId != "" {
 					output.Info("techSpaceId: %s", techSpaceId)
+				}
+				if networkId != "" {
+					output.Info("networkId: %s", networkId)
 				}
 				return nil
 			}
@@ -36,6 +40,11 @@ func NewGetCmd() *cobra.Command {
 				techSpaceId, _ := config.GetTechSpaceIdFromConfig()
 				if techSpaceId != "" {
 					output.Info(techSpaceId)
+				}
+			case "networkId":
+				networkId, _ := config.GetNetworkIdFromConfig()
+				if networkId != "" {
+					output.Info(networkId)
 				}
 			default:
 				return output.Error("unknown config key: %s", key)

@@ -18,6 +18,7 @@ func TestConfigManager(t *testing.T) {
 		testConfig := &Config{
 			AccountId:   "test-account-123",
 			TechSpaceId: "test-tech-space-789",
+			NetworkId:   "test-network-456",
 		}
 
 		cm := &ConfigManager{
@@ -50,6 +51,9 @@ func TestConfigManager(t *testing.T) {
 		}
 		if cfg.TechSpaceId != testConfig.TechSpaceId {
 			t.Errorf("TechSpaceId = %v, want %v", cfg.TechSpaceId, testConfig.TechSpaceId)
+		}
+		if cfg.NetworkId != testConfig.NetworkId {
+			t.Errorf("NetworkId = %v, want %v", cfg.NetworkId, testConfig.NetworkId)
 		}
 	})
 

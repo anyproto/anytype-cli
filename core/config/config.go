@@ -15,6 +15,7 @@ type Config struct {
 	// WARNING: This is insecure and should only be used on headless servers
 	AccountKey   string `json:"accountKey,omitempty"`
 	SessionToken string `json:"sessionToken,omitempty"`
+	NetworkId    string `json:"networkId,omitempty"`
 }
 
 var (
@@ -113,6 +114,14 @@ func (cm *ConfigManager) SetAccountId(accountId string) error {
 func (cm *ConfigManager) SetTechSpaceId(techSpaceId string) error {
 	cm.mu.Lock()
 	cm.config.TechSpaceId = techSpaceId
+	cm.mu.Unlock()
+
+	return cm.Save()
+}
+
+func (cm *ConfigManager) SetNetworkId(networkId string) error {
+	cm.mu.Lock()
+	cm.config.NetworkId = networkId
 	cm.mu.Unlock()
 
 	return cm.Save()

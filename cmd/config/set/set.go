@@ -27,6 +27,10 @@ func NewSetCmd() *cobra.Command {
 				if err := config.SetTechSpaceIdToConfig(value); err != nil {
 					return output.Error("Failed to set tech space Id: %w", err)
 				}
+			case "networkId":
+				if err := config.SetNetworkIdToConfig(value); err != nil {
+					return output.Error("Failed to set network Id: %w", err)
+				}
 			default:
 				return output.Error("unknown config key: %s", key)
 			}
