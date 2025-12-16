@@ -156,7 +156,7 @@ Manage API keys for programmatic access:
 
 ```bash
 # Create a new API key
-anytype auth apikey create --name "my-app"
+anytype auth apikey create "my-app"
 
 # List all API keys
 anytype auth apikey list
