@@ -45,13 +45,13 @@ func NewJoinCmd() *cobra.Command {
 
 				if inviteCid == "" {
 					if parsedCid == "" {
-						return output.Error("invalid invite link: invite link missing Cid in path")
+						return output.Error("invalid invite link: missing Cid in path")
 					}
 					inviteCid = parsedCid
 				}
 				if inviteFileKey == "" {
 					if parsedKey == "" {
-						return output.Error("invalid invite link: invite link missing key (should be after #)")
+						return output.Error("invalid invite link: missing key (should be after #)")
 					}
 					inviteFileKey = parsedKey
 				}
@@ -107,6 +107,8 @@ func parseInviteLinkParts(input string) (string, string, error) {
 }
 
 func parseInviteLink(input string) (string, string, error) {
+	// Convenience wrapper that enforces both cid and key presence.
+	// The command path uses parseInviteLinkParts to allow partial override via flags.
 	cid, key, err := parseInviteLinkParts(input)
 	if err != nil {
 		return "", "", err

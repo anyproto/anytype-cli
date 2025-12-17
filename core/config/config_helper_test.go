@@ -87,6 +87,7 @@ func TestLoadStoredConfig(t *testing.T) {
 	}
 	if cfg == nil {
 		t.Fatalf("LoadStoredConfig() returned nil config")
+		return
 	}
 	if cfg.AccountId != "test-account-123" {
 		t.Fatalf("LoadStoredConfig() AccountId = %v, want test-account-123", cfg.AccountId)
