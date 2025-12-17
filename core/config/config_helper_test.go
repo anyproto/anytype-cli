@@ -17,7 +17,7 @@ func setupTestHome(t *testing.T) string {
 	t.Cleanup(func() { os.RemoveAll(tempDir) })
 	t.Setenv("HOME", tempDir)
 
-	// Reset the singleton so GetConfigManager uses the test HOME-based path.
+	// Reset the singleton so GetConfigManager uses the test HOME-based path
 	instance = nil
 	once = sync.Once{}
 
@@ -37,8 +37,11 @@ func TestGetStoredAccountId(t *testing.T) {
 	}
 
 	accountId, err := GetAccountIdFromConfig()
-	if err == nil && accountId != "" {
-		t.Logf("GetAccountIdFromConfig() = %v", accountId)
+	if err != nil {
+		t.Fatalf("GetAccountIdFromConfig() returned error: %v", err)
+	}
+	if accountId != "test-account-123" {
+		t.Fatalf("GetAccountIdFromConfig() = %v, want test-account-123", accountId)
 	}
 }
 
@@ -55,8 +58,11 @@ func TestGetStoredTechSpaceId(t *testing.T) {
 	}
 
 	techSpaceId, err := GetTechSpaceIdFromConfig()
-	if err == nil && techSpaceId != "" {
-		t.Logf("GetTechSpaceIdFromConfig() = %v", techSpaceId)
+	if err != nil {
+		t.Fatalf("GetTechSpaceIdFromConfig() returned error: %v", err)
+	}
+	if techSpaceId != "tech-space-789" {
+		t.Fatalf("GetTechSpaceIdFromConfig() = %v, want tech-space-789", techSpaceId)
 	}
 }
 
@@ -76,11 +82,17 @@ func TestLoadStoredConfig(t *testing.T) {
 	}
 
 	cfg, err := LoadStoredConfig()
-	if err == nil && cfg != nil {
-		if cfg.AccountId != "" || cfg.TechSpaceId != "" {
-			t.Logf("LoadStoredConfig() loaded config with AccountId=%v, TechSpaceId=%v",
-				cfg.AccountId, cfg.TechSpaceId)
-		}
+	if err != nil {
+		t.Fatalf("LoadStoredConfig() returned error: %v", err)
+	}
+	if cfg == nil {
+		t.Fatalf("LoadStoredConfig() returned nil config")
+	}
+	if cfg.AccountId != "test-account-123" {
+		t.Fatalf("LoadStoredConfig() AccountId = %v, want test-account-123", cfg.AccountId)
+	}
+	if cfg.TechSpaceId != "tech-space-789" {
+		t.Fatalf("LoadStoredConfig() TechSpaceId = %v, want tech-space-789", cfg.TechSpaceId)
 	}
 }
 
