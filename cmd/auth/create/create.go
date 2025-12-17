@@ -1,38 +1,29 @@
 package create
 
 import (
-	"bufio"
 	"fmt"
-	"os"
 	"strings"
 
+	"github.com/spf13/cobra"
+
+	"github.com/anyproto/anytype-cli/cmd/cmdutil"
 	"github.com/anyproto/anytype-cli/core"
 	"github.com/anyproto/anytype-cli/core/config"
 	"github.com/anyproto/anytype-cli/core/output"
-	"github.com/spf13/cobra"
 )
 
 // NewCreateCmd creates the auth create command
 func NewCreateCmd() *cobra.Command {
-	var name string
 	var rootPath string
 	var listenAddress string
 
 	cmd := &cobra.Command{
-		Use:   "create",
+		Use:   "create <name>",
 		Short: "Create a new bot account",
 		Long:  "Create a new Anytype bot account with a generated account key. The account key is your credential for bot authentication.",
+		Args:  cmdutil.ExactArgs(1, "cannot create account: name argument required"),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if name == "" {
-				output.Print("Enter account name: ")
-				reader := bufio.NewReader(os.Stdin)
-				name, _ = reader.ReadString('\n')
-				name = strings.TrimSpace(name)
-
-				if name == "" {
-					return output.Error("account name is required")
-				}
-			}
+			name := args[0]
 
 			accountKey, accountId, savedToKeyring, err := core.CreateWallet(name, rootPath, listenAddress)
 			if err != nil {
@@ -83,7 +74,6 @@ func NewCreateCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&name, "name", "", "Account name")
 	cmd.Flags().StringVar(&rootPath, "root-path", "", "Root path for account data")
 	cmd.Flags().StringVar(&listenAddress, "listen-address", config.DefaultAPIAddress, "API listen address in `host:port` format")
 

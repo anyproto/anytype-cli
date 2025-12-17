@@ -21,7 +21,7 @@ TANTIVY_VERSION := v1.0.4
 TANTIVY_LIB_PATH ?= dist/tantivy
 CGO_LDFLAGS := -L$(TANTIVY_LIB_PATH)
 
-GOLANGCI_LINT_VERSION := v2.2.1
+GOLANGCI_LINT_VERSION := v2.7.2
 
 ##@ Build
 
@@ -126,9 +126,9 @@ install-linter: ## Install golangci-lint
 	@go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
 	@echo "golangci-lint installed successfully"
 
-test: ## Run tests
+test: download-tantivy ## Run tests
 	@echo "Running tests..."
-	@go test github.com/anyproto/anytype-cli/...
+	@CGO_ENABLED=1 CGO_LDFLAGS="$(CGO_LDFLAGS)" go test github.com/anyproto/anytype-cli/...
 	@echo "Tests completed"
 
 ##@ Cleanup

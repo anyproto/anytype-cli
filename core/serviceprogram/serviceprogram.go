@@ -3,6 +3,7 @@ package serviceprogram
 import (
 	"context"
 	"fmt"
+	"os"
 	"sync"
 	"time"
 
@@ -14,18 +15,60 @@ import (
 	"github.com/anyproto/anytype-cli/core/output"
 )
 
-type Program struct {
-	server   *grpcserver.Server
-	ctx      context.Context
-	cancel   context.CancelFunc
-	wg       sync.WaitGroup
-	startErr error
-	startCh  chan struct{}
+// GetService creates a service instance with default configuration.
+func GetService() (service.Service, error) {
+	return GetServiceWithAddress("")
 }
 
-func New() *Program {
+// GetServiceWithAddress creates a service instance with a custom API listen address.
+func GetServiceWithAddress(apiAddr string) (service.Service, error) {
+	options := service.KeyValue{
+		"UserService": true,
+	}
+
+	logDir := config.GetLogsDir()
+	if logDir != "" {
+		if err := os.MkdirAll(logDir, 0755); err == nil {
+			options["LogDirectory"] = logDir
+		}
+	}
+
+	effectiveAddr := apiAddr
+	if effectiveAddr == "" {
+		effectiveAddr = config.DefaultAPIAddress
+	}
+
+	args := []string{"serve"}
+	if effectiveAddr != config.DefaultAPIAddress {
+		args = append(args, "--listen-address", effectiveAddr)
+	}
+
+	svcConfig := &service.Config{
+		Name:        "anytype",
+		DisplayName: "Anytype",
+		Description: "Anytype",
+		Arguments:   args,
+		Option:      options,
+	}
+
+	prg := New(effectiveAddr)
+	return service.New(prg, svcConfig)
+}
+
+type Program struct {
+	server        *grpcserver.Server
+	ctx           context.Context
+	cancel        context.CancelFunc
+	wg            sync.WaitGroup
+	startErr      error
+	startCh       chan struct{}
+	apiListenAddr string
+}
+
+func New(apiListenAddr string) *Program {
 	return &Program{
-		startCh: make(chan struct{}),
+		startCh:       make(chan struct{}),
+		apiListenAddr: apiListenAddr,
 	}
 }
 
@@ -99,7 +142,7 @@ func (p *Program) attemptAutoLogin() {
 
 	maxRetries := 3
 	for i := 0; i < maxRetries; i++ {
-		if err := core.Authenticate(accountKey, "", ""); err != nil {
+		if err := core.Authenticate(accountKey, "", p.apiListenAddr); err != nil {
 			if i < maxRetries-1 {
 				time.Sleep(2 * time.Second)
 				continue

@@ -13,7 +13,7 @@ func NewRevokeCmd() *cobra.Command {
 		Use:   "revoke <id>",
 		Short: "Revoke an API key",
 		Long:  "Revoke an API key by its Id",
-		Args:  cmdutil.ExactArgs(1, "cannot revoke API key: Id argument required"),
+		Args:  cmdutil.ExactArgs(1, "cannot revoke API key: id argument required"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			appId := args[0]
 

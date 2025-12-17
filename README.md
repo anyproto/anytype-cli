@@ -41,7 +41,7 @@ anytype service install
 anytype service start
 
 # Create a new bot account
-anytype auth create
+anytype auth create <name>
 
 # Join a space via invite link
 anytype space join <invite-link>
@@ -74,7 +74,7 @@ Examples:
   anytype service install           # Install as user service
   anytype service start             # Start the service
   anytype auth login                # Log in to your account
-  anytype auth create               # Create a new account
+  anytype auth create <name>        # Create a new account
   anytype space list                # List all available spaces
 
 Use "anytype <command> --help" for more information about a command.
@@ -138,7 +138,7 @@ Manage your Anytype account and authentication:
 
 ```bash
 # Create a new account
-anytype auth create
+anytype auth create <name>
 
 # Log in to your account
 anytype auth login
@@ -156,7 +156,7 @@ Manage API keys for programmatic access:
 
 ```bash
 # Create a new API key
-anytype auth apikey create --name "my-app"
+anytype auth apikey create <name>
 
 # List all API keys
 anytype auth apikey list
