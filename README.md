@@ -132,6 +132,21 @@ You can change the API listen address using `--listen-address` (e.g., `--listen-
 
 **Security note**: Always keep your API keys safe. If ports are exposed externally, third parties with your API key could gain unauthorized access to the spaces your headless instance has access to.
 
+#### Self-Hosted Sync Nodes
+
+To use the CLI with self-hosted sync nodes instead of the default Anytype network, you need to build the CLI with a custom network configuration file (`heart.yml`):
+
+```bash
+# Build with your self-hosted network configuration
+make build ANY_SYNC_NETWORK=/path/to/heart.yml
+
+# Then install and use normally
+make install
+anytype serve
+```
+
+The `heart.yml` file contains your self-hosted network configuration including coordinator, tree, and file node addresses. This configuration is compiled into the binary at build time. See the [self-hosting documentation](https://tech.anytype.io/how-to/self-hosting) for details on setting up self-hosted sync nodes and generating the network configuration file.
+
 ### Authentication
 
 Manage your Anytype account and authentication:
@@ -217,6 +232,9 @@ cd anytype-cli
 
 # Build the CLI (automatically downloads tantivy library)
 make build
+
+# Build with custom self-hosted network configuration
+make build ANY_SYNC_NETWORK=/path/to/heart.yml
 
 # Install to ~/.local/bin
 make install

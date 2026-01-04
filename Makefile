@@ -17,6 +17,11 @@ GOOS ?= $(shell go env GOOS)
 GOARCH ?= $(shell go env GOARCH)
 OUTPUT ?= dist/anytype
 
+# Self-hosted network configuration (optional)
+# Set this to the path of your heart.yml file to build with custom sync nodes
+# Example: make build ANY_SYNC_NETWORK=/path/to/heart.yml
+ANY_SYNC_NETWORK ?=
+
 TANTIVY_VERSION := v1.0.4
 TANTIVY_LIB_PATH ?= dist/tantivy
 CGO_LDFLAGS := -L$(TANTIVY_LIB_PATH)
@@ -27,7 +32,12 @@ GOLANGCI_LINT_VERSION := v2.7.2
 
 build: download-tantivy ## Build the cli binary
 	@echo "Building anytype-cli with embedded anytype-heart server..."
-	@CGO_ENABLED=1 CGO_LDFLAGS="$(CGO_LDFLAGS)" GOOS=$(GOOS) GOARCH=$(GOARCH) go build -tags "$(BUILD_TAGS)" -ldflags "$(LDFLAGS) $(EXTRA_LDFLAGS)" -o $(OUTPUT)
+	@if [ -n "$(ANY_SYNC_NETWORK)" ]; then \
+		echo "Using custom network configuration: $(ANY_SYNC_NETWORK)"; \
+		CGO_ENABLED=1 CGO_LDFLAGS="$(CGO_LDFLAGS)" GOOS=$(GOOS) GOARCH=$(GOARCH) ANY_SYNC_NETWORK=$(ANY_SYNC_NETWORK) go build -tags "$(BUILD_TAGS)" -ldflags "$(LDFLAGS) $(EXTRA_LDFLAGS)" -o $(OUTPUT); \
+	else \
+		CGO_ENABLED=1 CGO_LDFLAGS="$(CGO_LDFLAGS)" GOOS=$(GOOS) GOARCH=$(GOARCH) go build -tags "$(BUILD_TAGS)" -ldflags "$(LDFLAGS) $(EXTRA_LDFLAGS)" -o $(OUTPUT); \
+	fi
 	@echo "Built successfully: $(OUTPUT)"
 
 cross-compile: ## Build for all platforms

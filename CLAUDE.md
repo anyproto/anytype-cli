@@ -12,6 +12,9 @@ This is the Anytype CLI, a Go-based command-line interface for interacting with 
 # Build the CLI (includes embedded server, downloads tantivy library automatically)
 make build
 
+# Build with custom self-hosted network configuration
+make build ANY_SYNC_NETWORK=/path/to/heart.yml
+
 # Install to ~/.local/bin (user installation)
 make install
 
@@ -39,6 +42,16 @@ make build-windows-amd64
 - **Tantivy Library**: Automatically downloaded for your platform during `make build`
 - **C Compiler**: Required for CGO and linking tantivy library (clang on macOS, gcc on Linux, mingw on Windows)
 - **Go 1.20+**: Required for building the project
+
+### Self-Hosted Network Configuration
+
+To build the CLI for use with self-hosted sync nodes:
+
+1. **Generate Network Configuration**: Use `any-sync-network` tool or your self-hosted setup to generate a `heart.yml` configuration file
+2. **Build with Custom Network**: Run `make build ANY_SYNC_NETWORK=/path/to/heart.yml`
+3. **Install and Use**: The resulting binary will connect to your self-hosted sync nodes instead of the default Anytype network
+
+The network configuration is compiled into the binary at build time and cannot be changed at runtime.
 
 ## Development Workflow
 
