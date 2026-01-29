@@ -5,6 +5,7 @@ import (
 
 	"github.com/anyproto/anytype-cli/cmd/chat/delete"
 	"github.com/anyproto/anytype-cli/cmd/chat/edit"
+	"github.com/anyproto/anytype-cli/cmd/chat/find"
 	"github.com/anyproto/anytype-cli/cmd/chat/list"
 	"github.com/anyproto/anytype-cli/cmd/chat/react"
 	"github.com/anyproto/anytype-cli/cmd/chat/send"
@@ -17,6 +18,7 @@ func NewChatCmd() *cobra.Command {
 		Long:  "Send, receive, and manage chat messages in Anytype spaces",
 	}
 
+	cmd.AddCommand(find.NewFindCmd())
 	cmd.AddCommand(send.NewSendCmd())
 	cmd.AddCommand(list.NewListCmd())
 	cmd.AddCommand(edit.NewEditCmd())

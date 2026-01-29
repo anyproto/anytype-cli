@@ -18,7 +18,7 @@ import (
 	"github.com/anyproto/anytype-cli/core/config"
 )
 
-const defaultTimeout = 5 * time.Second
+const defaultTimeout = 30 * time.Second
 
 var (
 	clientInstance service.ClientCommandsClient

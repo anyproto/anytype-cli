@@ -8,6 +8,7 @@ import (
 	"github.com/anyproto/anytype-heart/pb"
 	"github.com/anyproto/anytype-heart/pb/service"
 	"github.com/anyproto/anytype-heart/pkg/lib/pb/model"
+	"github.com/anyproto/anytype-heart/util/pbtypes"
 )
 
 // ChatMessage represents a chat message for display
@@ -156,6 +157,81 @@ func ToggleChatReaction(chatObjectId string, messageId string, emoji string) (bo
 		return nil
 	})
 	return added, err
+}
+
+// SubscribeToChat subscribes to a chat and returns the latest messages
+func SubscribeToChat(chatObjectId string, limit int32) ([]ChatMessage, error) {
+	var messages []ChatMessage
+	err := GRPCCall(func(ctx context.Context, client service.ClientCommandsClient) error {
+		req := &pb.RpcChatSubscribeLastMessagesRequest{
+			ChatObjectId: chatObjectId,
+			Limit:        limit,
+			SubId:        "cli-sub",
+		}
+		resp, err := client.ChatSubscribeLastMessages(ctx, req)
+		if err != nil {
+			return fmt.Errorf("failed to subscribe to chat: %w", err)
+		}
+		if resp.Error != nil && resp.Error.Code != pb.RpcChatSubscribeLastMessagesResponseError_NULL {
+			return fmt.Errorf("subscribe error: %s", resp.Error.Description)
+		}
+
+		for _, m := range resp.Messages {
+			msg := ChatMessage{
+				ID:        m.Id,
+				OrderID:   m.OrderId,
+				Creator:   m.Creator,
+				CreatedAt: time.Unix(m.CreatedAt, 0),
+				ReplyTo:   m.ReplyToMessageId,
+				Read:      m.Read,
+			}
+			if m.Message != nil {
+				msg.Text = m.Message.Text
+			}
+			if m.Reactions != nil {
+				msg.Reactions = make(map[string][]string)
+				for emoji, identList := range m.Reactions.Reactions {
+					msg.Reactions[emoji] = identList.Ids
+				}
+			}
+			messages = append(messages, msg)
+		}
+		return nil
+	})
+	return messages, err
+}
+
+// FindChatObjects searches for chat-type objects in a space
+func FindChatObjects(spaceId string) ([]string, error) {
+	var chatIds []string
+	err := GRPCCall(func(ctx context.Context, client service.ClientCommandsClient) error {
+		req := &pb.RpcObjectSearchRequest{
+			SpaceId: spaceId,
+			Filters: []*model.BlockContentDataviewFilter{
+				{
+					RelationKey: "type",
+					Condition:   model.BlockContentDataviewFilter_Equal,
+					Value:       pbtypes.String("ot-chat"),
+				},
+			},
+			Limit: 100,
+		}
+		resp, err := client.ObjectSearch(ctx, req)
+		if err != nil {
+			return fmt.Errorf("failed to search objects: %w", err)
+		}
+		if resp.Error != nil && resp.Error.Code != pb.RpcObjectSearchResponseError_NULL {
+			return fmt.Errorf("search error: %s", resp.Error.Description)
+		}
+
+		for _, record := range resp.Records {
+			if id := pbtypes.GetString(record, "id"); id != "" {
+				chatIds = append(chatIds, id)
+			}
+		}
+		return nil
+	})
+	return chatIds, err
 }
 
 // MarkChatMessagesRead marks messages as read up to a certain point
