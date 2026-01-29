@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/anyproto/anytype-cli/cmd/auth"
+	"github.com/anyproto/anytype-cli/cmd/chat"
 	"github.com/anyproto/anytype-cli/cmd/config"
 	"github.com/anyproto/anytype-cli/cmd/serve"
 	"github.com/anyproto/anytype-cli/cmd/service"
@@ -50,6 +51,7 @@ func init() {
 
 	rootCmd.AddCommand(
 		auth.NewAuthCmd(),
+		chat.NewChatCmd(),
 		config.NewConfigCmd(),
 		serve.NewServeCmd(),
 		service.NewServiceCmd(),
