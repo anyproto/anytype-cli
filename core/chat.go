@@ -8,7 +8,6 @@ import (
 	"github.com/anyproto/anytype-heart/pb"
 	"github.com/anyproto/anytype-heart/pb/service"
 	"github.com/anyproto/anytype-heart/pkg/lib/pb/model"
-	"github.com/anyproto/anytype-heart/util/pbtypes"
 )
 
 // ChatMessage represents a chat message for display
@@ -199,39 +198,6 @@ func SubscribeToChat(chatObjectId string, limit int32) ([]ChatMessage, error) {
 		return nil
 	})
 	return messages, err
-}
-
-// FindChatObjects searches for chat-type objects in a space
-func FindChatObjects(spaceId string) ([]string, error) {
-	var chatIds []string
-	err := GRPCCall(func(ctx context.Context, client service.ClientCommandsClient) error {
-		req := &pb.RpcObjectSearchRequest{
-			SpaceId: spaceId,
-			Filters: []*model.BlockContentDataviewFilter{
-				{
-					RelationKey: "type",
-					Condition:   model.BlockContentDataviewFilter_Equal,
-					Value:       pbtypes.String("ot-chat"),
-				},
-			},
-			Limit: 100,
-		}
-		resp, err := client.ObjectSearch(ctx, req)
-		if err != nil {
-			return fmt.Errorf("failed to search objects: %w", err)
-		}
-		if resp.Error != nil && resp.Error.Code != pb.RpcObjectSearchResponseError_NULL {
-			return fmt.Errorf("search error: %s", resp.Error.Description)
-		}
-
-		for _, record := range resp.Records {
-			if id := pbtypes.GetString(record, "id"); id != "" {
-				chatIds = append(chatIds, id)
-			}
-		}
-		return nil
-	})
-	return chatIds, err
 }
 
 // MarkChatMessagesRead marks messages as read up to a certain point

@@ -1,6 +1,8 @@
 package list
 
 import (
+	"fmt"
+
 	"github.com/spf13/cobra"
 
 	"github.com/anyproto/anytype-cli/core"
@@ -53,7 +55,7 @@ func NewListCmd() *cobra.Command {
 				if len(msg.Reactions) > 0 {
 					reactionStr := "   Reactions:"
 					for emoji, users := range msg.Reactions {
-						reactionStr += " " + emoji + "(" + string(rune(len(users)+'0')) + ")"
+						reactionStr += fmt.Sprintf(" %s(%d)", emoji, len(users))
 					}
 					output.Info(reactionStr)
 				}
