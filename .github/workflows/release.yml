@@ -60,7 +60,7 @@ jobs:
           ls -la anytype-cli-*
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: anytype-cli-releases
           path: |
@@ -73,7 +73,7 @@ jobs:
 
     steps:
       - name: Download artifacts
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: anytype-cli-releases
           path: artifacts
@@ -119,7 +119,7 @@ jobs:
           echo "RELEASE_VERSION=${ver}" >> "$GITHUB_OUTPUT"
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@v4
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
