@@ -17,6 +17,7 @@ import (
 	"github.com/anyproto/anytype-cli/core"
 	"github.com/anyproto/anytype-cli/core/output"
 	"github.com/spf13/cobra"
+	"golang.org/x/mod/semver"
 )
 
 const (
@@ -48,7 +49,7 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		currentBase = current[:idx]
 	}
 
-	if currentBase >= latest {
+	if semver.Compare(currentBase, latest) >= 0 {
 		output.Info("Already up to date (%s)", current)
 		return nil
 	}
