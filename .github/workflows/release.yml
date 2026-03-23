@@ -14,9 +14,9 @@ jobs:
     runs-on: mac-mini-org-heart
 
     outputs:
-      version: ${{ steps.buildvars.outputs.version }}
-      commit: ${{ steps.buildvars.outputs.commit }}
-      build_time: ${{ steps.buildvars.outputs.time }}
+      version: ${{ steps.build-vars.outputs.version }}
+      commit: ${{ steps.build-vars.outputs.commit }}
+      build-time: ${{ steps.build-vars.outputs.time }}
 
     steps:
       - name: Checkout tag
@@ -32,7 +32,7 @@ jobs:
           cache: false
 
       - name: Set build variables
-        id: buildvars
+        id: build-vars
         run: |
           echo "version=${{ github.ref_name }}" >> $GITHUB_OUTPUT
           echo "time=$(date -u '+%Y-%m-%d %H:%M:%S')" >> $GITHUB_OUTPUT
@@ -40,10 +40,10 @@ jobs:
 
       - name: Cross-compile all platforms in parallel
         env:
-          VERSION: ${{ steps.buildvars.outputs.version }}
+          VERSION: ${{ steps.build-vars.outputs.version }}
           GIT_STATE: clean
-          COMMIT: ${{ steps.buildvars.outputs.commit }}
-          BUILD_TIME: ${{ steps.buildvars.outputs.time }}
+          COMMIT: ${{ steps.build-vars.outputs.commit }}
+          BUILD_TIME: ${{ steps.build-vars.outputs.time }}
         run: |
           make cross-compile
           ls -la dist/
@@ -51,11 +51,11 @@ jobs:
       - name: Compress binaries
         run: |
           cd dist
-          cp anytype-darwin-amd64 anytype && tar czf "../anytype-cli-${{ steps.buildvars.outputs.version }}-darwin-amd64.tar.gz" anytype && rm anytype
-          cp anytype-darwin-arm64 anytype && tar czf "../anytype-cli-${{ steps.buildvars.outputs.version }}-darwin-arm64.tar.gz" anytype && rm anytype
-          cp anytype-windows-amd64.exe anytype.exe && zip "../anytype-cli-${{ steps.buildvars.outputs.version }}-windows-amd64.zip" anytype.exe && rm anytype.exe
-          cp anytype-linux-amd64 anytype && tar czf "../anytype-cli-${{ steps.buildvars.outputs.version }}-linux-amd64.tar.gz" anytype && rm anytype
-          cp anytype-linux-arm64 anytype && tar czf "../anytype-cli-${{ steps.buildvars.outputs.version }}-linux-arm64.tar.gz" anytype && rm anytype
+          cp anytype-darwin-amd64 anytype && tar czf "../anytype-cli-${{ steps.build-vars.outputs.version }}-darwin-amd64.tar.gz" anytype && rm anytype
+          cp anytype-darwin-arm64 anytype && tar czf "../anytype-cli-${{ steps.build-vars.outputs.version }}-darwin-arm64.tar.gz" anytype && rm anytype
+          cp anytype-windows-amd64.exe anytype.exe && zip "../anytype-cli-${{ steps.build-vars.outputs.version }}-windows-amd64.zip" anytype.exe && rm anytype.exe
+          cp anytype-linux-amd64 anytype && tar czf "../anytype-cli-${{ steps.build-vars.outputs.version }}-linux-amd64.tar.gz" anytype && rm anytype
+          cp anytype-linux-arm64 anytype && tar czf "../anytype-cli-${{ steps.build-vars.outputs.version }}-linux-arm64.tar.gz" anytype && rm anytype
           cd ..
           ls -la anytype-cli-*
 
@@ -67,7 +67,7 @@ jobs:
             anytype-cli-*.tar.gz
             anytype-cli-*.zip
 
-  create_release:
+  create-release:
     needs: build-all-platforms
     runs-on: ubuntu-latest
 
@@ -82,7 +82,7 @@ jobs:
         run: ls -la artifacts/
 
       - name: Create Release & Upload Assets
-        id: create_release
+        id: create-release
         uses: softprops/action-gh-release@v2
         with:
           name: ${{ github.ref_name }}
@@ -96,7 +96,7 @@ jobs:
     name: Build Docker image and push to registry
     needs:
       - build-all-platforms
-      - create_release
+      - create-release
     runs-on: ubuntu-latest
 
     steps:
@@ -141,7 +141,7 @@ jobs:
           build-args: |
             VERSION=${{ needs.build-all-platforms.outputs.version }}
             COMMIT=${{ needs.build-all-platforms.outputs.commit }}
-            BUILD_TIME=${{ needs.build-all-platforms.outputs.build_time }}
+            BUILD_TIME=${{ needs.build-all-platforms.outputs['build-time'] }}
             GIT_STATE=clean
           tags: |
             ghcr.io/${{ github.repository }}:latest
@@ -171,7 +171,7 @@ jobs:
           build-args: |
             VERSION=${{ needs.build-all-platforms.outputs.version }}
             COMMIT=${{ needs.build-all-platforms.outputs.commit }}
-            BUILD_TIME=${{ needs.build-all-platforms.outputs.build_time }}
+            BUILD_TIME=${{ needs.build-all-platforms.outputs['build-time'] }}
             GIT_STATE=clean
           tags: |
             docker.io/${{ github.repository }}:latest
