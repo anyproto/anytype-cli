@@ -323,25 +323,23 @@ func replaceBinary(newBinary string) error {
 
 	if err := os.Rename(newBinary, currentBinary); err != nil {
 		if runtime.GOOS == "windows" {
-			// Windows locks running exe, so we can't overwrite.
-			// Rename the current binary first, then replace with the new one.
+			// Windows locks the running exe, so rename it out of the way first.
 			current := core.GetVersion()
 			oldBinary := currentBinary + "_" + current
 			if err := os.Rename(currentBinary, oldBinary); err != nil {
 				return output.Error("failed to move current binary (permission denied). Try running as administrator: %w", err)
 			}
 			if err := os.Rename(newBinary, currentBinary); err != nil {
-				// Attempt to restore the original
 				_ = os.Rename(oldBinary, currentBinary)
 				return output.Error("failed to install new binary: %w", err)
 			}
+			_ = os.Remove(oldBinary)
 
 			return nil
-		} else {
-			cmd := exec.Command("mv", newBinary, currentBinary)
-			if err := cmd.Run(); err != nil {
-				return output.Error("failed to replace binary at %s (permission denied). To get the latest version, reinstall from repository: https://github.com/%s/%s", currentBinary, githubOwner, githubRepo)
-			}
+		}
+		cmd := exec.Command("mv", newBinary, currentBinary)
+		if err := cmd.Run(); err != nil {
+			return output.Error("failed to replace binary at %s (permission denied). To get the latest version, reinstall from repository: https://github.com/%s/%s", currentBinary, githubOwner, githubRepo)
 		}
 	}
 
