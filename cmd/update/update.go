@@ -17,6 +17,7 @@ import (
 	"github.com/anyproto/anytype-cli/core"
 	"github.com/anyproto/anytype-cli/core/output"
 	"github.com/spf13/cobra"
+	"golang.org/x/mod/semver"
 )
 
 const (
@@ -48,7 +49,7 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		currentBase = current[:idx]
 	}
 
-	if currentBase >= latest {
+	if semver.Compare(currentBase, latest) >= 0 {
 		output.Info("Already up to date (%s)", current)
 		return nil
 	}
@@ -321,13 +322,24 @@ func replaceBinary(newBinary string) error {
 	}
 
 	if err := os.Rename(newBinary, currentBinary); err != nil {
-		if runtime.GOOS != "windows" {
-			cmd := exec.Command("mv", newBinary, currentBinary)
-			if err := cmd.Run(); err != nil {
-				return output.Error("failed to replace binary at %s (permission denied). To get the latest version, reinstall from repository: https://github.com/%s/%s", currentBinary, githubOwner, githubRepo)
+		if runtime.GOOS == "windows" {
+			// Windows locks the running exe, so rename it out of the way first.
+			current := core.GetVersion()
+			oldBinary := currentBinary + "_" + current
+			if err := os.Rename(currentBinary, oldBinary); err != nil {
+				return output.Error("failed to move current binary (permission denied). Try running as administrator: %w", err)
 			}
-		} else {
-			return output.Error("failed to replace binary at %s. To get the latest version, reinstall from repository: https://github.com/%s/%s", currentBinary, githubOwner, githubRepo)
+			if err := os.Rename(newBinary, currentBinary); err != nil {
+				_ = os.Rename(oldBinary, currentBinary)
+				return output.Error("failed to install new binary: %w", err)
+			}
+			_ = os.Remove(oldBinary)
+
+			return nil
+		}
+		cmd := exec.Command("mv", newBinary, currentBinary)
+		if err := cmd.Run(); err != nil {
+			return output.Error("failed to replace binary at %s (permission denied). To get the latest version, reinstall from repository: https://github.com/%s/%s", currentBinary, githubOwner, githubRepo)
 		}
 	}
 
