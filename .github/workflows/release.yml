@@ -4,6 +4,8 @@ on:
   push:
     tags:
       - "v*.*.*"
+  repository_dispatch:
+    types: [trigger-from-heart]
 
 permissions:
   contents: write
@@ -23,7 +25,6 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
-          ref: ${{ github.ref }}
 
       - name: Setup Go
         uses: actions/setup-go@v6
@@ -31,12 +32,65 @@ jobs:
           go-version: "1.24"
           cache: false
 
+      - name: Resolve release tag
+        id: resolve-tag
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ "${{ github.event_name }}" == "repository_dispatch" ]; then
+            if [ -z "${{ github.event.client_payload.version }}" ]; then
+              echo "❌ client_payload.version is required"
+              exit 1
+            fi
+            SOURCE_TAG="${{ github.event.client_payload.version }}"
+
+            if [[ "$SOURCE_TAG" == *-rc* ]]; then
+              FILTER='^v[0-9]+\.[0-9]+\.[0-9]+-rc$'
+              SUFFIX='-rc'
+            else
+              FILTER='^v[0-9]+\.[0-9]+\.[0-9]+$'
+              SUFFIX=''
+            fi
+
+            LAST_TAG="$(git tag --list | grep -E "$FILTER" | sort -V | tail -n 1 || true)"
+
+            if [ -z "$LAST_TAG" ]; then
+              MAJOR=0
+              MINOR=0
+              PATCH=0
+            else
+              BASE="${LAST_TAG#v}"
+              BASE="${BASE%-rc}"
+              IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE"
+            fi
+
+            PATCH=$((PATCH + 1))
+            TAG="v${MAJOR}.${MINOR}.${PATCH}${SUFFIX}"
+          else
+            TAG="${GITHUB_REF_NAME}"
+          fi
+
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Resolved tag: $TAG"
+
       - name: Set build variables
         id: build-vars
         run: |
-          echo "version=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          if [ "${{ github.event_name }}" == "repository_dispatch" ]; then
+            echo "version=${{ steps.resolve-tag.outputs.tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          fi
           echo "time=$(date -u '+%Y-%m-%d %H:%M:%S')" >> $GITHUB_OUTPUT
           echo "commit=$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
+
+      - name: Update anytype-heart version
+        if: github.event_name == 'repository_dispatch'
+        shell: bash
+        run: |
+          go get github.com/anyproto/anytype-heart@${{ github.event.client_payload.version }}
+          go mod tidy
 
       - name: Cross-compile all platforms in parallel
         env:
@@ -85,11 +139,12 @@ jobs:
         id: create-release
         uses: softprops/action-gh-release@v2
         with:
-          name: ${{ github.ref_name }}
+          tag_name: ${{ needs.build-all-platforms.outputs.version }}
+          name: ${{ needs.build-all-platforms.outputs.version }}
           files: artifacts/anytype-cli-*
           generate_release_notes: true
           draft: false
-          prerelease: ${{ contains(github.ref, '-rc') }}
+          prerelease: ${{ contains(needs.build-all-platforms.outputs.version, '-rc') }}
           token: ${{ secrets.GITHUB_TOKEN }}
 
   push-docker-image:
@@ -104,7 +159,6 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
-          ref: ${{ github.ref }}
 
       - name: Set deploy-platforms
         run: |
@@ -114,7 +168,7 @@ jobs:
         id: release-version
         shell: bash
         run: |
-          tag="${{ github.ref_name }}"
+          tag="${{ needs.build-all-platforms.outputs.version }}"
           ver="${tag#v}"
           echo "RELEASE_VERSION=${ver}" >> "$GITHUB_OUTPUT"
 
@@ -145,7 +199,7 @@ jobs:
             GIT_STATE=clean
           tags: |
             ghcr.io/${{ github.repository }}:latest
-            ghcr.io/${{ github.repository }}:${{ github.ref_name }}
+            ghcr.io/${{ github.repository }}:${{ needs.build-all-platforms.outputs.version }}
             ghcr.io/${{ github.repository }}:v${{ steps.release-version.outputs.RELEASE_VERSION }}
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
@@ -175,7 +229,7 @@ jobs:
             GIT_STATE=clean
           tags: |
             docker.io/${{ github.repository }}:latest
-            docker.io/${{ github.repository }}:${{ github.ref_name }}
+            docker.io/${{ github.repository }}:${{ needs.build-all-platforms.outputs.version }}
             docker.io/${{ github.repository }}:v${{ steps.release-version.outputs.RELEASE_VERSION }}
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
