@@ -38,7 +38,7 @@ make build-windows-amd64
 - **CGO**: The build requires CGO_ENABLED=1 due to tantivy (full-text search library) dependencies
 - **Tantivy Library**: Automatically downloaded for your platform during `make build`
 - **C Compiler**: Required for CGO and linking tantivy library (clang on macOS, gcc on Linux, mingw on Windows)
-- **Go 1.24+**: Required for building the project
+- **Go 1.25+**: Required for building the project
 
 ## Development Workflow
 
