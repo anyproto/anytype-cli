@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   build-all-platforms:
-    runs-on: mac-mini-org-heart
+    runs-on: macos-15
 
     outputs:
       version: ${{ steps.build-vars.outputs.version }}
@@ -124,6 +124,10 @@ jobs:
   create-release:
     needs: build-all-platforms
     runs-on: ubuntu-latest
+    outputs:
+      body: ${{ steps.release-info.outputs.body }}
+      html_url: ${{ steps.release-info.outputs.html_url }}
+      tag_name: ${{ steps.release-info.outputs.tag_name }}
 
     steps:
       - name: Download artifacts
@@ -146,6 +150,21 @@ jobs:
           draft: false
           prerelease: ${{ contains(needs.build-all-platforms.outputs.version, '-rc') }}
           token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get release info
+        id: release-info
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const release_id = Number('${{ steps.create-release.outputs.id }}');
+            const { data } = await github.rest.repos.getRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id
+            });
+            core.setOutput('body', data.body || '');
+            core.setOutput('html_url', data.html_url);
+            core.setOutput('tag_name', data.tag_name);
 
   push-docker-image:
     name: Build Docker image and push to registry
@@ -238,3 +257,23 @@ jobs:
             org.opencontainers.image.version=${{ steps.release-version.outputs.RELEASE_VERSION }}
             org.opencontainers.image.revision=${{ github.sha }}
 
+  notify:
+    needs:
+      - build-all-platforms
+      - create-release
+      - push-docker-image
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify Slack (workflow result)
+        uses: ravsamhq/notify-slack-action@v2
+        with:
+          status: ${{ (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')) && 'failure' || 'success' }}
+          notification_title: "${{ (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')) && '❌' || '✅' }} {workflow} {repo}"
+          message_format: |
+            *Release:* <${{ needs.create-release.outputs.html_url }}|${{ needs.create-release.outputs.tag_name || 'none' }}>
+            *Description:*
+            ${{ needs.create-release.outputs.body || 'no changes, build skipped' }}
+          footer: "Linked Repo <{repo_url}|{repo}> | <{run_url}|View Workflow Run>"
+        env:
+          SLACK_WEBHOOK_URL: ${{ (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')) && secrets.SLACK_WEBHOOK_URL_ALERTS || secrets.SLACK_WEBHOOK_URL_RELEASE_TRAIN }}
