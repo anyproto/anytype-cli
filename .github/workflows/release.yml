@@ -95,7 +95,8 @@ jobs:
       - name: Install dependency mingw
         run: |
           brew update
-          brew install mingw-w64
+          brew tap FiloSottile/musl-cross
+          brew install mingw-w64 musl-cross
 
       - name: Cross-compile all platforms in parallel
         env:
