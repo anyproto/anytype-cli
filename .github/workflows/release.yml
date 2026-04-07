@@ -92,6 +92,11 @@ jobs:
           go get github.com/anyproto/anytype-heart@${{ github.event.client_payload.version }}
           go mod tidy
 
+      - name: Install dependency mingw
+        run: |
+          brew update
+          brew install mingw-w64
+
       - name: Cross-compile all platforms in parallel
         env:
           VERSION: ${{ steps.build-vars.outputs.version }}
