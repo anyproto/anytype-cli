@@ -1,57 +1,17 @@
 # syntax=docker/dockerfile:1
 
-# =============================================================================
-# Build stage
-# =============================================================================
-FROM golang:1.25-alpine AS builder
-
-WORKDIR /app
-
-# Install build dependencies
-# - build-base: gcc, musl-dev (required for CGO/tantivy linking)
-# - curl: for downloading the tantivy library
-# - make: to use Makefile build
-RUN apk add --no-cache build-base curl make
-
-# Copy dependency files first for better layer caching
-COPY go.mod go.sum ./
-RUN go mod download && go mod verify
-
-# Copy source code
-COPY . .
-
-# Build arguments for version info (pass via --build-arg)
-ARG VERSION=unknown
-ARG COMMIT=unknown
-ARG BUILD_TIME=unknown
-ARG GIT_STATE=unknown
-ARG TARGETARCH
-
-# Build a statically-linked binary via Makefile
-RUN CGO_ENABLED=1 \
-    GOOS=linux \
-    GOARCH="${TARGETARCH}" \
-    BUILD_TAGS="noheic" \
-    EXTRA_LDFLAGS="-linkmode external -extldflags '-static'" \
-    OUTPUT=/app/anytype \
-    VERSION="${VERSION}" \
-    COMMIT="${COMMIT}" \
-    BUILD_TIME="${BUILD_TIME}" \
-    GIT_STATE="${GIT_STATE}" \
-    make build
-
-# =============================================================================
-# Production stage
-# =============================================================================
-FROM alpine:3.23 AS production
+FROM alpine:3.23
 
 WORKDIR /app
 
 # Install ca-certificates for TLS and netcat for health checks
 RUN apk add --no-cache ca-certificates netcat-openbsd
 
-# Copy binary from builder
-COPY --from=builder /app/anytype /app/anytype
+# Pre-compiled binary is provided in build context as anytype-linux-{arch}
+# TARGETARCH is set automatically by docker buildx (amd64 or arm64)
+ARG TARGETARCH
+COPY anytype-linux-${TARGETARCH} /app/anytype
+RUN chmod +x /app/anytype
 
 # Note: Running as root to avoid volume permission issues in docker-compose
 

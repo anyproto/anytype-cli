@@ -13,6 +13,7 @@ permissions:
 
 jobs:
   build-all-platforms:
+    name: Build all platforms
     runs-on: macos-15
 
     outputs:
@@ -128,6 +129,7 @@ jobs:
             anytype-cli-*.zip
 
   create-release:
+    name: Create GitHub release
     needs: build-all-platforms
     runs-on: ubuntu-latest
     outputs:
@@ -180,11 +182,6 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-
       - name: Set deploy-platforms
         run: |
           echo "DEPLOY_PLATFORMS=linux/amd64,linux/arm64" >> $GITHUB_ENV
@@ -196,6 +193,26 @@ jobs:
           tag="${{ needs.build-all-platforms.outputs.version }}"
           ver="${tag#v}"
           echo "RELEASE_VERSION=${ver}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout Dockerfile
+        uses: actions/checkout@v6
+        with:
+          sparse-checkout: Dockerfile
+          sparse-checkout-cone-mode: false
+
+      - name: Download release artifacts
+        uses: actions/download-artifact@v8
+        with:
+          name: anytype-cli-releases
+          path: artifacts
+
+      - name: Extract linux binaries
+        run: |
+          tar -xzf artifacts/anytype-cli-${{ needs.build-all-platforms.outputs.version }}-linux-amd64.tar.gz
+          mv anytype anytype-linux-amd64
+          tar -xzf artifacts/anytype-cli-${{ needs.build-all-platforms.outputs.version }}-linux-arm64.tar.gz
+          mv anytype anytype-linux-arm64
+          ls -la anytype-linux-*
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v4
@@ -217,11 +234,7 @@ jobs:
           file: Dockerfile
           platforms: ${{ env.DEPLOY_PLATFORMS }}
           push: true
-          build-args: |
-            VERSION=${{ needs.build-all-platforms.outputs.version }}
-            COMMIT=${{ needs.build-all-platforms.outputs.commit }}
-            BUILD_TIME=${{ needs.build-all-platforms.outputs['build-time'] }}
-            GIT_STATE=clean
+          provenance: false
           tags: |
             ghcr.io/${{ github.repository }}:latest
             ghcr.io/${{ github.repository }}:${{ needs.build-all-platforms.outputs.version }}
@@ -247,11 +260,7 @@ jobs:
           file: Dockerfile
           platforms: ${{ env.DEPLOY_PLATFORMS }}
           push: true
-          build-args: |
-            VERSION=${{ needs.build-all-platforms.outputs.version }}
-            COMMIT=${{ needs.build-all-platforms.outputs.commit }}
-            BUILD_TIME=${{ needs.build-all-platforms.outputs['build-time'] }}
-            GIT_STATE=clean
+          provenance: false
           tags: |
             docker.io/${{ github.repository }}:latest
             docker.io/${{ github.repository }}:${{ needs.build-all-platforms.outputs.version }}
@@ -264,6 +273,7 @@ jobs:
             org.opencontainers.image.revision=${{ github.sha }}
 
   notify:
+    name: Notify Slack
     needs:
       - build-all-platforms
       - create-release
