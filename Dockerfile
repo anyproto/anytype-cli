@@ -3,6 +3,8 @@
 FROM alpine:3.23
 
 WORKDIR /app
+# Add /app to PATH
+ENV PATH="/app:${PATH}"
 
 # Install ca-certificates for TLS and netcat for health checks
 RUN apk add --no-cache ca-certificates netcat-openbsd
