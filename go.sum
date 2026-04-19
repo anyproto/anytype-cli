@@ -669,12 +669,8 @@ github.com/konsorten/go-windows-terminal-sequences v1.0.1/go.mod h1:T0+1ngSBFLxv
 github.com/konsorten/go-windows-terminal-sequences v1.0.3/go.mod h1:T0+1ngSBFLxvqU3pZ+m/2kptfBszLMUkC4ZK/EgS/cQ=
 github.com/koron/go-ssdp v0.0.6 h1:Jb0h04599eq/CY7rB5YEqPS83HmRfHP2azkxMN2rFtU=
 github.com/koron/go-ssdp v0.0.6/go.mod h1:0R9LfRJGek1zWTjN3JUNlm5INCDYGpRDfAptnct63fI=
-github.com/kovidgoyal/go-parallel v1.1.1 h1:1OzpNjtrUkBPq3UaqrnvOoB2F9RttSt811uiUXyI7ok=
-github.com/kovidgoyal/go-parallel v1.1.1/go.mod h1:BJNIbe6+hxyFWv7n6oEDPj3PA5qSw5OCtf0hcVxWJiw=
-github.com/kovidgoyal/go-shm v1.0.0 h1:HJEel9D1F9YhULvClEHJLawoRSj/1u/EDV7MJbBPgQo=
-github.com/kovidgoyal/go-shm v1.0.0/go.mod h1:Yzb80Xf9L3kaoB2RGok9hHwMIt7Oif61kT6t3+VnZds=
-github.com/kovidgoyal/imaging v1.8.21 h1:95S2+dowTeKJJHNpf6lnScvIennTr2H0zQotu+ptNQw=
-github.com/kovidgoyal/imaging v1.8.21/go.mod h1:976F+zjiQeZ7sd87Pxlm0a64S/w9bImSIWg3sSk1rdQ=
+github.com/kovidgoyal/imaging v1.6.4 h1:K0idhRPXnRrJBKnBYcTfI1HTWSNDeAn7hYDvf9I0dCk=
+github.com/kovidgoyal/imaging v1.6.4/go.mod h1:bEIgsaZmXlvFfkv/CUxr9rJook6AQkJnpB5EPosRfRY=
 github.com/kr/fs v0.1.0/go.mod h1:FFnZGqtBN9Gxj7eW1uZ42v5BccTP0vu6NEaFoC2HwRg=
 github.com/kr/logfmt v0.0.0-20140226030751-b84e30acd515/go.mod h1:+0opPa2QZZtGFBFZlji/RkVcI2GknAs/DXo4wKdlNEc=
 github.com/kr/pretty v0.1.0/go.mod h1:dAy3ld7l9f0ibDNOQOHHMYYIIbhfbHSm3C4ZsoJORNo=
@@ -1140,8 +1136,8 @@ golang.org/x/exp v0.0.0-20260410095643-746e56fc9e2f/go.mod h1:J1xhfL/vlindoeF/aI
 golang.org/x/image v0.0.0-20190227222117-0694c2d4d067/go.mod h1:kZ7UVZpmo3dzQBMxlp+ypCbDeSB+sBbTgSJuh5dn5js=
 golang.org/x/image v0.0.0-20190802002840-cff245a6509b/go.mod h1:FeLwcggjj3mMvU+oOTbSwawSJRM1uh48EjtB4UJZlP0=
 golang.org/x/image v0.0.0-20191009234506-e7c1f5e7dbb8/go.mod h1:FeLwcggjj3mMvU+oOTbSwawSJRM1uh48EjtB4UJZlP0=
-golang.org/x/image v0.39.0 h1:skVYidAEVKgn8lZ602XO75asgXBgLj9G/FE3RbuPFww=
-golang.org/x/image v0.39.0/go.mod h1:sIbmppfU+xFLPIG0FoVUTvyBMmgng1/XAMhQ2ft0hpA=
+golang.org/x/image v0.38.0 h1:5l+q+Y9JDC7mBOMjo4/aPhMDcxEptsX+Tt3GgRQRPuE=
+golang.org/x/image v0.38.0/go.mod h1:/3f6vaXC+6CEanU4KJxbcUZyEePbyKbaLoDOe4ehFYY=
 golang.org/x/lint v0.0.0-20181026193005-c67002cb31c3/go.mod h1:UVdnD1Gm6xHRNCYTkRU2/jEulfH38KcIWyp/GAMgvoE=
 golang.org/x/lint v0.0.0-20190227174305-5b3e6a55c961/go.mod h1:wehouNa3lNwaWXcvxsM5YxQ5yQlVC4a0KAMCusXpPoU=
 golang.org/x/lint v0.0.0-20190301231843-5614ed5bae6f/go.mod h1:UVdnD1Gm6xHRNCYTkRU2/jEulfH38KcIWyp/GAMgvoE=

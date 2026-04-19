@@ -161,9 +161,7 @@ require (
 	github.com/kelseyhightower/envconfig v1.4.0 // indirect
 	github.com/klauspost/compress v1.18.5 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
-	github.com/kovidgoyal/go-parallel v1.1.1 // indirect
-	github.com/kovidgoyal/go-shm v1.0.0 // indirect
-	github.com/kovidgoyal/imaging v1.8.21 // indirect
+	github.com/kovidgoyal/imaging v1.6.4 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/libp2p/go-buffer-pool v0.1.0 // indirect
 	github.com/libp2p/go-libp2p v0.48.0 // indirect
@@ -250,7 +248,7 @@ require (
 	golang.org/x/arch v0.26.0 // indirect
 	golang.org/x/crypto v0.50.0 // indirect
 	golang.org/x/exp v0.0.0-20260410095643-746e56fc9e2f // indirect
-	golang.org/x/image v0.39.0 // indirect
+	golang.org/x/image v0.38.0 // indirect
 	golang.org/x/net v0.53.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect
