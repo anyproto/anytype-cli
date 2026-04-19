@@ -10,8 +10,8 @@ RUN apk add --no-cache ca-certificates netcat-openbsd
 # Pre-compiled binary is provided in build context as anytype-linux-{arch}
 # TARGETARCH is set automatically by docker buildx (amd64 or arm64)
 ARG TARGETARCH
-COPY anytype-linux-${TARGETARCH} /app/anytype
-RUN chmod +x /app/anytype
+COPY anytype-linux-${TARGETARCH} /usr/local/bin/anytype
+RUN chmod +x /usr/local/bin/anytype
 
 # Note: Running as root to avoid volume permission issues in docker-compose
 
@@ -26,5 +26,5 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
     CMD nc -z 127.0.0.1 31010 || exit 1
 
 # Run the embedded server in foreground
-ENTRYPOINT ["/app/anytype"]
+ENTRYPOINT ["anytype"]
 CMD ["serve"]
