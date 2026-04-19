@@ -36,6 +36,7 @@ var (
 		},
 		PersistentPostRun: func(cmd *cobra.Command, args []string) {
 			if msg, ok := updatecheck.Hint(updateCh, core.GetVersion()); ok {
+				fmt.Fprintln(os.Stderr)
 				output.Warning(msg)
 			}
 		},

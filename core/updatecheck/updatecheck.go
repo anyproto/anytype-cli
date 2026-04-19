@@ -30,15 +30,10 @@ type cache struct {
 
 var disabled atomic.Bool
 
-// Disable turns off the update check for the lifetime of this process.
-// Used by long-running modes like the interactive shell where rootCmd
-// is re-executed for each nested command.
+// Disable suppresses the check for the rest of the process. Used by the
+// interactive shell, which re-executes rootCmd for each nested command.
 func Disable() { disabled.Store(true) }
 
-// Start launches a background update check, capped at checkDeadline, and
-// returns a channel that yields the latest release tag (or is closed without
-// a value on failure). The channel is buffered, so the sender never blocks.
-// Returns nil when disabled.
 func Start(ctx context.Context) <-chan string {
 	if disabled.Load() {
 		return nil
@@ -55,9 +50,6 @@ func Start(ctx context.Context) <-chan string {
 	return ch
 }
 
-// Hint reads the result of a Start and returns a user-facing message if the
-// latest release is newer than current. A nil channel, dev builds, and empty
-// results all yield ("", false).
 func Hint(ch <-chan string, current string) (string, bool) {
 	if ch == nil || !strings.HasPrefix(current, "v") {
 		return "", false
