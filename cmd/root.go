@@ -1,11 +1,14 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/anyproto/anytype-cli/core"
 	"github.com/anyproto/anytype-cli/core/output"
+	"github.com/anyproto/anytype-cli/core/updatecheck"
 	"github.com/spf13/cobra"
 
 	"github.com/anyproto/anytype-cli/cmd/auth"
@@ -19,11 +22,26 @@ import (
 )
 
 var (
-	versionFlag bool
-	rootCmd     = &cobra.Command{
+	versionFlag   bool
+	noUpdateCheck bool
+	rootCmd       = &cobra.Command{
 		Use:   "anytype <command> <subcommand> [flags]",
 		Short: "Command-line interface for Anytype",
 		Long:  "Command-line interface for Anytype",
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			if !shouldCheckUpdate(cmd) {
+				return
+			}
+			updatecheck.Start(context.Background())
+		},
+		PersistentPostRun: func(cmd *cobra.Command, args []string) {
+			if !shouldCheckUpdate(cmd) {
+				return
+			}
+			if msg, ok := updatecheck.Hint(core.GetVersion()); ok {
+				output.Warning(msg)
+			}
+		},
 		Run: func(cmd *cobra.Command, args []string) {
 			if versionFlag {
 				output.Print(core.GetVersionBrief())
@@ -47,6 +65,7 @@ func Execute() {
 func init() {
 	rootCmd.Flags().BoolVarP(&versionFlag, "version", "v", false, "Show version information")
 	rootCmd.Flags().BoolP("help", "h", false, "Show help for command")
+	rootCmd.PersistentFlags().BoolVar(&noUpdateCheck, "no-update-check", false, "Disable the background check for new CLI releases")
 
 	rootCmd.AddCommand(
 		auth.NewAuthCmd(),
@@ -60,4 +79,33 @@ func init() {
 	)
 
 	rootCmd.CompletionOptions.HiddenDefaultCmd = true
+}
+
+func shouldCheckUpdate(cmd *cobra.Command) bool {
+	if noUpdateCheck {
+		return false
+	}
+	if !isTerminal(os.Stderr) {
+		return false
+	}
+	if !strings.HasPrefix(core.GetVersion(), "v") {
+		return false
+	}
+	path := cmd.CommandPath()
+	if path == "anytype" || strings.HasPrefix(path, "anytype service") {
+		return false
+	}
+	switch cmd.Name() {
+	case "serve", "shell", "version", "update":
+		return false
+	}
+	return true
+}
+
+func isTerminal(f *os.File) bool {
+	info, err := f.Stat()
+	if err != nil {
+		return false
+	}
+	return (info.Mode() & os.ModeCharDevice) != 0
 }
