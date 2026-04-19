@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/anyproto/anytype-cli/core/output"
+	"github.com/anyproto/anytype-cli/core/updatecheck"
 )
 
 func NewShellCmd(rootCmd *cobra.Command) *cobra.Command {
@@ -17,6 +18,7 @@ func NewShellCmd(rootCmd *cobra.Command) *cobra.Command {
 		Short: "Start interactive shell mode",
 		Long:  "Launch an interactive shell where you can run Anytype commands without the 'anytype' prefix. Type 'exit' to quit.",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			updatecheck.Disable()
 			output.Info("Starting Anytype interactive shell. Type 'exit' to quit.")
 			return runShell(rootCmd)
 		},
