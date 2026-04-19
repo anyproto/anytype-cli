@@ -61,6 +61,10 @@ func runShell(rootCmd *cobra.Command) error {
 		}
 
 		args := strings.Split(line, " ")
+		if args[0] == "shell" {
+			output.Warning("Already in shell mode. Type 'exit' or 'quit' to leave.")
+			continue
+		}
 		rootCmd.SetArgs(args)
 
 		if err := rootCmd.Execute(); err != nil {
@@ -73,7 +77,7 @@ func buildCompleter(rootCmd *cobra.Command) *readline.PrefixCompleter {
 	var items []readline.PrefixCompleterInterface
 
 	for _, cmd := range rootCmd.Commands() {
-		if cmd.Hidden {
+		if cmd.Hidden || cmd.Name() == "shell" {
 			continue
 		}
 
