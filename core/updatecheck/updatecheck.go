@@ -20,6 +20,7 @@ const (
 	cacheFileName   = "update-check.json"
 	refreshInterval = 24 * time.Hour
 	checkDeadline   = 400 * time.Millisecond
+	hintWait        = 200 * time.Millisecond
 	latestURL       = "https://api.github.com/repos/anyproto/anytype-cli/releases/latest"
 )
 
@@ -55,7 +56,12 @@ func Hint(ch <-chan string, current string) (string, bool) {
 		return "", false
 	}
 
-	v := <-ch
+	var v string
+	select {
+	case v = <-ch:
+	case <-time.After(hintWait):
+		return "", false
+	}
 	if v == "" {
 		return "", false
 	}
