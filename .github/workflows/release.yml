@@ -149,7 +149,7 @@ jobs:
 
       - name: Create Release & Upload Assets
         id: create-release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ needs.build-all-platforms.outputs.version }}
           name: ${{ needs.build-all-platforms.outputs.version }}
@@ -161,7 +161,7 @@ jobs:
 
       - name: Get release info
         id: release-info
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const release_id = Number('${{ steps.create-release.outputs.id }}');
