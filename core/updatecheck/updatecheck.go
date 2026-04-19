@@ -8,7 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/mod/semver"
@@ -19,7 +19,7 @@ import (
 const (
 	cacheFileName   = "update-check.json"
 	refreshInterval = 24 * time.Hour
-	fetchTimeout    = 3 * time.Second
+	checkDeadline   = 400 * time.Millisecond
 	latestURL       = "https://api.github.com/repos/anyproto/anytype-cli/releases/latest"
 )
 
@@ -28,75 +28,73 @@ type cache struct {
 	CheckedAt time.Time `json:"checkedAt"`
 }
 
-var (
-	mu       sync.RWMutex
-	latest   string
-	disabled bool
-)
+var disabled atomic.Bool
 
 // Disable turns off the update check for the lifetime of this process.
-// Useful for long-running modes like the interactive shell.
-func Disable() {
-	mu.Lock()
-	disabled = true
-	mu.Unlock()
-}
+// Used by long-running modes like the interactive shell where rootCmd
+// is re-executed for each nested command.
+func Disable() { disabled.Store(true) }
 
-// Start seeds the latest-version result from the on-disk cache and, if the
-// cache is stale or missing, kicks off a background refresh. Silent on failure.
-func Start(ctx context.Context) {
-	mu.RLock()
-	off := disabled
-	mu.RUnlock()
-	if off {
-		return
+// Start launches a background update check, capped at checkDeadline, and
+// returns a channel that yields the latest release tag (or is closed without
+// a value on failure). The channel is buffered, so the sender never blocks.
+// Returns nil when disabled.
+func Start(ctx context.Context) <-chan string {
+	if disabled.Load() {
+		return nil
 	}
-
-	path := cachePath()
-	c, err := readCache(path)
-	if err == nil {
-		mu.Lock()
-		latest = c.Latest
-		mu.Unlock()
-		if time.Since(c.CheckedAt) < refreshInterval {
-			return
-		}
-	}
-
+	ctx, cancel := context.WithTimeout(ctx, checkDeadline)
+	ch := make(chan string, 1)
 	go func() {
-		v, err := fetchLatest(ctx)
-		if err != nil {
-			return
+		defer cancel()
+		defer close(ch)
+		if v, ok := latestVersion(ctx); ok {
+			ch <- v
 		}
-		mu.Lock()
-		latest = v
-		mu.Unlock()
-		_ = writeCache(path, cache{Latest: v, CheckedAt: time.Now()})
 	}()
+	return ch
 }
 
-// Hint returns a user-facing message if the cached latest version is newer
-// than current. Returns ("", false) when disabled, on dev builds, when no
-// cached value is available, or when current is already up to date.
-func Hint(current string) (string, bool) {
-	mu.RLock()
-	off := disabled
-	v := latest
-	mu.RUnlock()
-	if off || v == "" {
+// Hint reads the result of a Start and returns a user-facing message if the
+// latest release is newer than current. A nil channel, dev builds, and empty
+// results all yield ("", false).
+func Hint(ch <-chan string, current string) (string, bool) {
+	if ch == nil || !strings.HasPrefix(current, "v") {
 		return "", false
 	}
-	if !strings.HasPrefix(current, "v") {
+
+	v := <-ch
+	if v == "" {
 		return "", false
 	}
+
 	base := current
-	if idx := strings.Index(base, "-"); idx != -1 {
-		base = base[:idx]
+	if i := strings.Index(base, "-"); i != -1 {
+		base = base[:i]
 	}
 	if semver.Compare(base, v) >= 0 {
 		return "", false
 	}
 	return fmt.Sprintf("A new version (%s) is available. Run: anytype update", v), true
+}
+
+func latestVersion(ctx context.Context) (string, bool) {
+	path := cachePath()
+	c, cacheErr := readCache(path)
+	if cacheErr == nil && time.Since(c.CheckedAt) < refreshInterval {
+		return c.Latest, true
+	}
+
+	v, err := fetchLatest(ctx)
+	if err == nil {
+		_ = writeCache(path, cache{Latest: v, CheckedAt: time.Now()})
+		return v, true
+	}
+
+	if cacheErr == nil && c.Latest != "" {
+		return c.Latest, true
+	}
+	return "", false
 }
 
 func cachePath() string {
@@ -131,9 +129,6 @@ func writeCache(path string, c cache) error {
 }
 
 func fetchLatest(ctx context.Context) (string, error) {
-	ctx, cancel := context.WithTimeout(ctx, fetchTimeout)
-	defer cancel()
-
 	req, err := http.NewRequestWithContext(ctx, "GET", latestURL, nil)
 	if err != nil {
 		return "", err

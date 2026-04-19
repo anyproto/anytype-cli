@@ -24,21 +24,18 @@ import (
 var (
 	versionFlag   bool
 	noUpdateCheck bool
+	updateCh      <-chan string
 	rootCmd       = &cobra.Command{
 		Use:   "anytype <command> <subcommand> [flags]",
 		Short: "Command-line interface for Anytype",
 		Long:  "Command-line interface for Anytype",
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			if !shouldCheckUpdate(cmd) {
-				return
+			if shouldCheckUpdate(cmd) {
+				updateCh = updatecheck.Start(context.Background())
 			}
-			updatecheck.Start(context.Background())
 		},
 		PersistentPostRun: func(cmd *cobra.Command, args []string) {
-			if !shouldCheckUpdate(cmd) {
-				return
-			}
-			if msg, ok := updatecheck.Hint(core.GetVersion()); ok {
+			if msg, ok := updatecheck.Hint(updateCh, core.GetVersion()); ok {
 				output.Warning(msg)
 			}
 		},
