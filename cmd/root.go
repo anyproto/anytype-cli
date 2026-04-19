@@ -91,12 +91,8 @@ func shouldCheckUpdate(cmd *cobra.Command) bool {
 	if !strings.HasPrefix(core.GetVersion(), "v") {
 		return false
 	}
-	path := cmd.CommandPath()
-	if path == "anytype" || strings.HasPrefix(path, "anytype service") {
-		return false
-	}
 	switch cmd.Name() {
-	case "serve", "shell", "version", "update":
+	case "serve", "shell", "update":
 		return false
 	}
 	return true
