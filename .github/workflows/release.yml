@@ -11,6 +11,10 @@ permissions:
   contents: write
   packages: write
 
+concurrency:
+  group: release-${{ github.event_name == 'repository_dispatch' && (contains(github.event.client_payload.version, '-rc') && 'rc' || 'stable') || github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build-all-platforms:
     name: Build all platforms
@@ -19,7 +23,11 @@ jobs:
     outputs:
       version: ${{ steps.build-vars.outputs.version }}
       commit: ${{ steps.build-vars.outputs.commit }}
+      revision: ${{ steps.build-vars.outputs.revision }}
       build-time: ${{ steps.build-vars.outputs.time }}
+      heart-version: ${{ github.event.client_payload.version }}
+      previous-tag: ${{ steps.resolve-tag.outputs.previous_tag }}
+      skip: ${{ steps.bump-check.outputs.skip || 'false' }}
 
     steps:
       - name: Checkout tag
@@ -70,21 +78,12 @@ jobs:
             TAG="v${MAJOR}.${MINOR}.${PATCH}${SUFFIX}"
           else
             TAG="${GITHUB_REF_NAME}"
+            LAST_TAG="$(git describe --tags --abbrev=0 "${TAG}^" 2>/dev/null || true)"
           fi
 
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          echo "Resolved tag: $TAG"
-
-      - name: Set build variables
-        id: build-vars
-        run: |
-          if [ "${{ github.event_name }}" == "repository_dispatch" ]; then
-            echo "version=${{ steps.resolve-tag.outputs.tag }}" >> $GITHUB_OUTPUT
-          else
-            echo "version=${{ github.ref_name }}" >> $GITHUB_OUTPUT
-          fi
-          echo "time=$(date -u '+%Y-%m-%d %H:%M:%S')" >> $GITHUB_OUTPUT
-          echo "commit=$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
+          echo "previous_tag=${LAST_TAG:-}" >> "$GITHUB_OUTPUT"
+          echo "Resolved tag: $TAG (previous: ${LAST_TAG:-none})"
 
       - name: Update anytype-heart version
         if: github.event_name == 'repository_dispatch'
@@ -93,13 +92,61 @@ jobs:
           go get github.com/anyproto/anytype-heart@${{ github.event.client_payload.version }}
           go mod tidy
 
+      - name: Check if heart bump is needed
+        id: bump-check
+        if: github.event_name == 'repository_dispatch'
+        env:
+          HEART_VERSION: ${{ github.event.client_payload.version }}
+        shell: bash
+        run: |
+          if git diff --quiet -- go.mod go.sum; then
+            echo "Already at ${HEART_VERSION}; skipping release"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Commit bump and create release tag
+        if: github.event_name == 'repository_dispatch' && steps.bump-check.outputs.skip != 'true'
+        env:
+          TAG: ${{ steps.resolve-tag.outputs.tag }}
+          HEART_VERSION: ${{ github.event.client_payload.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add go.mod go.sum
+          git commit -m "Bump anytype-heart to ${HEART_VERSION}"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+
+          git tag "$TAG"
+          git push origin "$TAG"
+
+      - name: Set build variables
+        id: build-vars
+        if: steps.bump-check.outputs.skip != 'true'
+        run: |
+          if [ "${{ github.event_name }}" == "repository_dispatch" ]; then
+            echo "version=${{ steps.resolve-tag.outputs.tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          fi
+          echo "time=$(date -u '+%Y-%m-%d %H:%M:%S')" >> $GITHUB_OUTPUT
+          echo "commit=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          echo "revision=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+
       - name: Install dependency mingw
+        if: steps.bump-check.outputs.skip != 'true'
         run: |
           brew update
           brew tap FiloSottile/musl-cross
           brew install mingw-w64 musl-cross
 
       - name: Cross-compile all platforms in parallel
+        if: steps.bump-check.outputs.skip != 'true'
         env:
           VERSION: ${{ steps.build-vars.outputs.version }}
           GIT_STATE: clean
@@ -110,6 +157,7 @@ jobs:
           ls -la dist/
 
       - name: Compress binaries
+        if: steps.bump-check.outputs.skip != 'true'
         run: |
           cd dist
           cp anytype-darwin-amd64 anytype && tar czf "../anytype-cli-${{ steps.build-vars.outputs.version }}-darwin-amd64.tar.gz" anytype && rm anytype
@@ -121,6 +169,7 @@ jobs:
           ls -la anytype-cli-*
 
       - name: Upload artifacts
+        if: steps.bump-check.outputs.skip != 'true'
         uses: actions/upload-artifact@v7
         with:
           name: anytype-cli-releases
@@ -131,6 +180,7 @@ jobs:
   create-release:
     name: Create GitHub release
     needs: build-all-platforms
+    if: needs.build-all-platforms.outputs.skip != 'true'
     runs-on: ubuntu-latest
     outputs:
       body: ${{ steps.release-info.outputs.body }}
@@ -147,8 +197,40 @@ jobs:
       - name: List artifacts
         run: ls -la artifacts/
 
-      - name: Create Release & Upload Assets
-        id: create-release
+      - name: Compose release body
+        if: github.event_name == 'repository_dispatch'
+        shell: bash
+        env:
+          HEART_VERSION: ${{ needs.build-all-platforms.outputs.heart-version }}
+          TAG: ${{ needs.build-all-platforms.outputs.version }}
+          PREVIOUS_TAG: ${{ needs.build-all-platforms.outputs.previous-tag }}
+        run: |
+          {
+            echo "## What's Changed"
+            echo "* Update anytype-heart to ${HEART_VERSION}"
+            if [ -n "${PREVIOUS_TAG}" ]; then
+              echo ""
+              echo "**Full Changelog**: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/compare/${PREVIOUS_TAG}...${TAG}"
+            fi
+          } > release-body.md
+
+      - name: Create Release & Upload Assets (heart trigger)
+        id: create-release-dispatch
+        if: github.event_name == 'repository_dispatch'
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ needs.build-all-platforms.outputs.version }}
+          name: ${{ needs.build-all-platforms.outputs.version }}
+          files: artifacts/anytype-cli-*
+          body_path: release-body.md
+          generate_release_notes: false
+          draft: false
+          prerelease: ${{ contains(needs.build-all-platforms.outputs.version, '-rc') }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create Release & Upload Assets (tag push)
+        id: create-release-tag
+        if: github.event_name != 'repository_dispatch'
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ needs.build-all-platforms.outputs.version }}
@@ -164,7 +246,7 @@ jobs:
         uses: actions/github-script@v9
         with:
           script: |
-            const release_id = Number('${{ steps.create-release.outputs.id }}');
+            const release_id = Number('${{ steps.create-release-dispatch.outputs.id || steps.create-release-tag.outputs.id }}');
             const { data } = await github.rest.repos.getRelease({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -179,6 +261,7 @@ jobs:
     needs:
       - build-all-platforms
       - create-release
+    if: needs.build-all-platforms.outputs.skip != 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -244,7 +327,7 @@ jobs:
             org.opencontainers.image.description=Anytype CLI - Command-line interface for Anytype with embedded gRPC server
             org.opencontainers.image.licenses=MIT
             org.opencontainers.image.version=${{ steps.release-version.outputs.RELEASE_VERSION }}
-            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.revision=${{ needs.build-all-platforms.outputs.revision }}
 
       - name: Login to Docker Hub
         uses: docker/login-action@v4
@@ -270,7 +353,7 @@ jobs:
             org.opencontainers.image.description=Anytype CLI - Command-line interface for Anytype with embedded gRPC server
             org.opencontainers.image.licenses=MIT
             org.opencontainers.image.version=${{ steps.release-version.outputs.RELEASE_VERSION }}
-            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.revision=${{ needs.build-all-platforms.outputs.revision }}
 
   notify:
     name: Notify Slack
