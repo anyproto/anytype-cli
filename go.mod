@@ -3,8 +3,8 @@ module github.com/anyproto/anytype-cli
 go 1.25.7
 
 require (
-	github.com/anyproto/any-sync v0.12.4
-	github.com/anyproto/anytype-heart v0.50.6
+	github.com/anyproto/any-sync v0.12.6
+	github.com/anyproto/anytype-heart v0.50.8
 	github.com/cheggaaa/mb/v3 v3.0.2
 	github.com/chzyer/readline v1.5.1
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
@@ -248,13 +248,13 @@ require (
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/arch v0.26.0 // indirect
-	golang.org/x/crypto v0.51.0 // indirect
+	golang.org/x/crypto v0.52.0 // indirect
 	golang.org/x/exp v0.0.0-20260410095643-746e56fc9e2f // indirect
 	golang.org/x/image v0.38.0 // indirect
-	golang.org/x/net v0.54.0 // indirect
+	golang.org/x/net v0.55.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect
-	golang.org/x/sys v0.44.0 // indirect
+	golang.org/x/sys v0.45.0 // indirect
 	golang.org/x/text v0.37.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 	golang.org/x/tools v0.45.0 // indirect
@@ -268,7 +268,7 @@ require (
 	modernc.org/memory v1.11.0 // indirect
 	modernc.org/sqlite v1.49.1 // indirect
 	nhooyr.io/websocket v1.8.17 // indirect
-	storj.io/drpc v0.0.34 // indirect
+	storj.io/drpc v1.0.0 // indirect
 	zombiezen.com/go/sqlite v1.4.2 // indirect
 )
 
