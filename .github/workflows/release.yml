@@ -12,7 +12,7 @@ permissions:
   packages: write
 
 concurrency:
-  group: release-${{ github.event_name == 'repository_dispatch' && (contains(github.event.client_payload.version, '-rc') && 'rc' || 'stable') || github.ref }}
+  group: release-${{ github.event_name == 'repository_dispatch' && 'stable' || github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -54,15 +54,16 @@ jobs:
             fi
             SOURCE_TAG="${{ github.event.client_payload.version }}"
 
-            if [[ "$SOURCE_TAG" == *-rc* ]]; then
-              FILTER='^v[0-9]+\.[0-9]+\.[0-9]+-rc$'
-              SUFFIX='-rc'
-            else
-              FILTER='^v[0-9]+\.[0-9]+\.[0-9]+$'
-              SUFFIX=''
+            # Only stable releases (vX.X.X) trigger a bump. Skip prereleases
+            # like -alpha, -beta, -rc, etc. so they are never committed or tagged.
+            if [[ ! "$SOURCE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
+              echo "⏭️  $SOURCE_TAG is not a stable release (vX.X.X); skipping bump"
+              exit 0
             fi
+            echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
 
-            LAST_TAG="$(git tag --list | grep -E "$FILTER" | sort -V | tail -n 1 || true)"
+            LAST_TAG="$(git tag --list | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1 || true)"
 
             if [ -z "$LAST_TAG" ]; then
               MAJOR=0
@@ -70,12 +71,11 @@ jobs:
               PATCH=0
             else
               BASE="${LAST_TAG#v}"
-              BASE="${BASE%-rc}"
               IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE"
             fi
 
             PATCH=$((PATCH + 1))
-            TAG="v${MAJOR}.${MINOR}.${PATCH}${SUFFIX}"
+            TAG="v${MAJOR}.${MINOR}.${PATCH}"
           else
             TAG="${GITHUB_REF_NAME}"
             LAST_TAG="$(git describe --tags --abbrev=0 "${TAG}^" 2>/dev/null || true)"
@@ -86,7 +86,7 @@ jobs:
           echo "Resolved tag: $TAG (previous: ${LAST_TAG:-none})"
 
       - name: Update anytype-heart version
-        if: github.event_name == 'repository_dispatch'
+        if: github.event_name == 'repository_dispatch' && steps.resolve-tag.outputs.is_prerelease != 'true'
         shell: bash
         run: |
           go get github.com/anyproto/anytype-heart@${{ github.event.client_payload.version }}
@@ -97,9 +97,13 @@ jobs:
         if: github.event_name == 'repository_dispatch'
         env:
           HEART_VERSION: ${{ github.event.client_payload.version }}
+          IS_PRERELEASE: ${{ steps.resolve-tag.outputs.is_prerelease }}
         shell: bash
         run: |
-          if git diff --quiet -- go.mod go.sum; then
+          if [ "${IS_PRERELEASE}" == "true" ]; then
+            echo "${HEART_VERSION} is a prerelease; skipping commit and release"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          elif git diff --quiet -- go.mod go.sum; then
             echo "Already at ${HEART_VERSION}; skipping release"
             echo "skip=true" >> "$GITHUB_OUTPUT"
           else
@@ -143,6 +147,9 @@ jobs:
         run: |
           brew update
           brew tap FiloSottile/musl-cross
+          # musl-cross lives in a third-party tap; the runner sets
+          # HOMEBREW_REQUIRE_TAP_TRUST, so the tap must be trusted before install.
+          brew trust FiloSottile/musl-cross
           brew install mingw-w64 musl-cross
 
       - name: Cross-compile all platforms in parallel
@@ -225,7 +232,7 @@ jobs:
           body_path: release-body.md
           generate_release_notes: false
           draft: false
-          prerelease: ${{ contains(needs.build-all-platforms.outputs.version, '-rc') }}
+          prerelease: false
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create Release & Upload Assets (tag push)
