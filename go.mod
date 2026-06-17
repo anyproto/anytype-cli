@@ -3,8 +3,8 @@ module github.com/anyproto/anytype-cli
 go 1.25.7
 
 require (
-	github.com/anyproto/any-sync v0.12.6
-	github.com/anyproto/anytype-heart v0.50.8
+	github.com/anyproto/any-sync v0.12.9
+	github.com/anyproto/anytype-heart v0.50.10
 	github.com/cheggaaa/mb/v3 v3.0.2
 	github.com/chzyer/readline v1.5.1
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
@@ -140,7 +140,7 @@ require (
 	github.com/iancoleman/strcase v0.3.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/ipfs/bbloom v0.1.0 // indirect
-	github.com/ipfs/boxo v0.39.0 // indirect
+	github.com/ipfs/boxo v0.40.0 // indirect
 	github.com/ipfs/go-bitfield v1.1.0 // indirect
 	github.com/ipfs/go-block-format v0.2.3 // indirect
 	github.com/ipfs/go-cid v0.6.1 // indirect
@@ -151,7 +151,7 @@ require (
 	github.com/ipfs/go-ipld-format v0.6.3 // indirect
 	github.com/ipfs/go-ipld-legacy v0.3.0 // indirect
 	github.com/ipfs/go-log v1.0.5 // indirect
-	github.com/ipfs/go-log/v2 v2.9.1 // indirect
+	github.com/ipfs/go-log/v2 v2.9.2 // indirect
 	github.com/ipfs/go-metrics-interface v0.3.0 // indirect
 	github.com/ipld/go-codec-dagpb v1.7.0 // indirect
 	github.com/ipld/go-ipld-prime v0.23.0 // indirect
@@ -169,7 +169,7 @@ require (
 	github.com/libp2p/zeroconf/v2 v2.2.0 // indirect
 	github.com/lufia/plan9stats v0.0.0-20260330125221-c963978e514e // indirect
 	github.com/matishsiao/goInfo v0.0.0-20241216093258-66a9250504d6 // indirect
-	github.com/mattn/go-isatty v0.0.21 // indirect
+	github.com/mattn/go-isatty v0.0.22 // indirect
 	github.com/mattn/go-sqlite3 v1.14.42 // indirect
 	github.com/mb0/diff v0.0.0-20131118162322-d8d9a906c24d // indirect
 	github.com/microcosm-cc/bluemonday v1.0.27 // indirect
@@ -249,7 +249,7 @@ require (
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/arch v0.26.0 // indirect
 	golang.org/x/crypto v0.52.0 // indirect
-	golang.org/x/exp v0.0.0-20260410095643-746e56fc9e2f // indirect
+	golang.org/x/exp v0.0.0-20260508232706-74f9aab9d74a // indirect
 	golang.org/x/image v0.38.0 // indirect
 	golang.org/x/net v0.55.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
