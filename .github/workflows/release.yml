@@ -31,7 +31,7 @@ jobs:
 
     steps:
       - name: Checkout tag
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -285,7 +285,7 @@ jobs:
           echo "RELEASE_VERSION=${ver}" >> "$GITHUB_OUTPUT"
 
       - name: Checkout Dockerfile
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           sparse-checkout: Dockerfile
           sparse-checkout-cone-mode: false
