@@ -40,7 +40,13 @@ nodes:
       - file
 ```
 
-### 2. Create Account with Network Config
+### 2. Start Server
+
+```bash
+anytype serve
+```
+
+### 3. Create Account with Network Config
 
 Use the `--network-config` flag when creating your account:
 
@@ -49,14 +55,6 @@ anytype auth create my-bot --network-config ~/.config/anytype/network.yml
 ```
 
 Save the account key - it's your only authentication credential. The network config path is saved to `~/.anytype/config.json` for future operations.
-
-### 3. Start Server
-
-```bash
-anytype serve
-```
-
-The server will connect to your self-hosted network using the saved configuration.
 
 ## Joining Spaces
 
