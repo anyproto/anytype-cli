@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/anyproto/anytype-heart/pb"
@@ -22,6 +23,14 @@ type fakeAppLinkClient struct {
 	oldServer bool
 	// dropGrant makes CreateApp ignore the grant, like an old server would.
 	dropGrant bool
+
+	// cancelOnCreate is called right after CreateApp, to expire the caller's
+	// context the way a slow create uses up GRPCCall's deadline.
+	cancelOnCreate func()
+	// listFailures makes that many ListApps calls fail as unavailable.
+	listFailures int
+	// revokeErr makes RevokeApp fail.
+	revokeErr error
 
 	apps        []*model.AccountAuthAppInfo
 	createCalls []*pb.RpcAccountLocalLinkCreateAppRequest
@@ -55,14 +64,30 @@ func (f *fakeAppLinkClient) AccountLocalLinkCreateApp(_ context.Context, in *pb.
 		stored.Grant = nil
 	}
 	f.apps = append(f.apps, stored)
+	if f.cancelOnCreate != nil {
+		f.cancelOnCreate()
+	}
 	return &pb.RpcAccountLocalLinkCreateAppResponse{Error: &pb.RpcAccountLocalLinkCreateAppResponseError{}, AppKey: key}, nil
 }
 
-func (f *fakeAppLinkClient) AccountLocalLinkListApps(_ context.Context, _ *pb.RpcAccountLocalLinkListAppsRequest, _ ...grpc.CallOption) (*pb.RpcAccountLocalLinkListAppsResponse, error) {
+func (f *fakeAppLinkClient) AccountLocalLinkListApps(ctx context.Context, _ *pb.RpcAccountLocalLinkListAppsRequest, _ ...grpc.CallOption) (*pb.RpcAccountLocalLinkListAppsResponse, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, status.Error(codes.DeadlineExceeded, err.Error())
+	}
+	if f.listFailures > 0 {
+		f.listFailures--
+		return nil, status.Error(codes.Unavailable, "connection lost")
+	}
 	return &pb.RpcAccountLocalLinkListAppsResponse{Error: &pb.RpcAccountLocalLinkListAppsResponseError{}, App: f.apps}, nil
 }
 
-func (f *fakeAppLinkClient) AccountLocalLinkRevokeApp(_ context.Context, in *pb.RpcAccountLocalLinkRevokeAppRequest, _ ...grpc.CallOption) (*pb.RpcAccountLocalLinkRevokeAppResponse, error) {
+func (f *fakeAppLinkClient) AccountLocalLinkRevokeApp(ctx context.Context, in *pb.RpcAccountLocalLinkRevokeAppRequest, _ ...grpc.CallOption) (*pb.RpcAccountLocalLinkRevokeAppResponse, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, status.Error(codes.DeadlineExceeded, err.Error())
+	}
+	if f.revokeErr != nil {
+		return nil, f.revokeErr
+	}
 	f.revoked = append(f.revoked, in.AppHash)
 	return &pb.RpcAccountLocalLinkRevokeAppResponse{Error: &pb.RpcAccountLocalLinkRevokeAppResponseError{}}, nil
 }
@@ -131,6 +156,63 @@ func TestCreateAPIKeyRevokesKeyWhenServerDropsGrant(t *testing.T) {
 	}
 	if len(client.revoked) != 1 || client.revoked[0] != "hash-my-app" {
 		t.Errorf("revoked = %v, want the new key revoked", client.revoked)
+	}
+}
+
+func TestCreateAPIKeyRevokesKeyWhenVerificationFails(t *testing.T) {
+	client := &fakeAppLinkClient{listFailures: 1}
+
+	_, err := createAPIKey(context.Background(), client, "my-app", testGrant)
+
+	if err == nil {
+		t.Fatal("createAPIKey() succeeded although the key could not be verified")
+	}
+	if len(client.revoked) != 1 || client.revoked[0] != "hash-my-app" {
+		t.Errorf("revoked = %v, want the unverified key revoked", client.revoked)
+	}
+}
+
+func TestCreateAPIKeyCleansUpWithFreshDeadline(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	client := &fakeAppLinkClient{cancelOnCreate: cancel}
+
+	_, err := createAPIKey(ctx, client, "my-app", testGrant)
+
+	if err == nil {
+		t.Fatal("createAPIKey() succeeded although verification ran out of time")
+	}
+	if len(client.revoked) != 1 {
+		t.Errorf("revoked = %v, want cleanup to run despite the expired context", client.revoked)
+	}
+}
+
+func TestCreateAPIKeyReportsKeyThatCouldNotBeCleanedUp(t *testing.T) {
+	tests := []struct {
+		name     string
+		client   *fakeAppLinkClient
+		wantText string
+	}{
+		{"key cannot be found again", &fakeAppLinkClient{listFailures: 2}, `"my-app"`},
+		{"revoke fails", &fakeAppLinkClient{dropGrant: true, revokeErr: status.Error(codes.Unavailable, "connection lost")}, "hash-my-app"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := createAPIKey(context.Background(), tt.client, "my-app", testGrant)
+
+			if err == nil {
+				t.Fatal("createAPIKey() succeeded, want an error")
+			}
+			if !strings.Contains(err.Error(), tt.wantText) || !strings.Contains(err.Error(), "revoke") {
+				t.Errorf("error = %q, want it to name %s and say to revoke it", err, tt.wantText)
+			}
+			// GRPCCall rewrites errors carrying an Unavailable status into
+			// "anytype is not running", which would hide the leftover key.
+			if _, isStatus := status.FromError(err); isStatus {
+				t.Errorf("error %q carries a gRPC status and would be rewritten by GRPCCall", err)
+			}
+		})
 	}
 }
 

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"time"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -59,19 +60,38 @@ func createAPIKey(ctx context.Context, client service.ClientCommandsClient, name
 	}
 
 	// Never trust the server to have applied what was asked: read the key back
-	// and revoke it if its access differs from the request.
+	// and revoke it if its access differs from the request or can't be checked.
 	stored, err := findAppByKey(ctx, client, resp.AppKey)
 	if err != nil {
-		return nil, fmt.Errorf("API key created but could not be verified, check 'anytype auth apikey list': %w", err)
+		return nil, removeUnverifiedKey(ctx, client, name, resp.AppKey, fmt.Errorf("could not verify the new API key: %v", err))
 	}
 	if stored.Scope != model.AccountAuth_JsonAPI || !grantsEqual(stored.Grant, grant) {
-		if revokeErr := revokeAPIKey(ctx, client, stored.AppHash); revokeErr != nil {
-			return nil, fmt.Errorf("the server did not store the requested access and revoking the key failed, revoke %s manually: %w", stored.AppHash, revokeErr)
-		}
-		return nil, fmt.Errorf("the server did not store the requested access, so the key was revoked: %w", ErrServerTooOld)
+		return nil, removeUnverifiedKey(ctx, client, name, resp.AppKey, fmt.Errorf("the server did not store the requested access: %w", ErrServerTooOld))
 	}
 
 	return &CreatedAPIKey{Key: resp.AppKey, App: stored}, nil
+}
+
+// cleanupTimeout bounds the revocation of a key that failed verification. It
+// starts fresh because the create call may have used up the caller's deadline.
+const cleanupTimeout = 10 * time.Second
+
+// removeUnverifiedKey revokes a key whose access could not be confirmed and
+// returns the error to report. Errors from here on are formatted with %v, not
+// wrapped: GRPCCall rewrites any error carrying an Unavailable status into
+// "anytype is not running", which would hide that a key was left behind.
+func removeUnverifiedKey(ctx context.Context, client service.ClientCommandsClient, name, key string, cause error) error {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cleanupTimeout)
+	defer cancel()
+
+	app, err := findAppByKey(ctx, client, key)
+	if err != nil {
+		return fmt.Errorf("%w; the key %q may still exist and could not be revoked (%v): check 'anytype auth apikey list' and revoke it", cause, name, err)
+	}
+	if err := revokeAPIKey(ctx, client, app.AppHash); err != nil {
+		return fmt.Errorf("%w; revoking the key failed (%v): revoke it with 'anytype auth apikey revoke %s'", cause, err, app.AppHash)
+	}
+	return fmt.Errorf("%w; the key was revoked", cause)
 }
 
 // ensureGrantSupport probes for AccountLocalLinkUpdateApp, which arrived with
