@@ -11,15 +11,23 @@ permissions:
   contents: write
   packages: write
 
+concurrency:
+  group: release-${{ github.event_name == 'repository_dispatch' && 'stable' || github.ref }}
+  cancel-in-progress: false
+
 jobs:
-  build-all-platforms:
-    name: Build all platforms
-    runs-on: macos-15
+  prepare:
+    name: Resolve version
+    runs-on: ubuntu-latest
 
     outputs:
       version: ${{ steps.build-vars.outputs.version }}
       commit: ${{ steps.build-vars.outputs.commit }}
+      revision: ${{ steps.build-vars.outputs.revision }}
       build-time: ${{ steps.build-vars.outputs.time }}
+      heart-version: ${{ github.event.client_payload.version }}
+      previous-tag: ${{ steps.resolve-tag.outputs.previous_tag }}
+      skip: ${{ steps.bump-check.outputs.skip || 'false' }}
 
     steps:
       - name: Checkout tag
@@ -30,8 +38,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version: "1.26"
-          cache: false
+          go-version-file: go.mod
 
       - name: Resolve release tag
         id: resolve-tag
@@ -46,15 +53,16 @@ jobs:
             fi
             SOURCE_TAG="${{ github.event.client_payload.version }}"
 
-            if [[ "$SOURCE_TAG" == *-rc* ]]; then
-              FILTER='^v[0-9]+\.[0-9]+\.[0-9]+-rc$'
-              SUFFIX='-rc'
-            else
-              FILTER='^v[0-9]+\.[0-9]+\.[0-9]+$'
-              SUFFIX=''
+            # Only stable releases (vX.X.X) trigger a bump. Skip prereleases
+            # like -alpha, -beta, -rc, etc. so they are never committed or tagged.
+            if [[ ! "$SOURCE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
+              echo "⏭️  $SOURCE_TAG is not a stable release (vX.X.X); skipping bump"
+              exit 0
             fi
+            echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
 
-            LAST_TAG="$(git tag --list | grep -E "$FILTER" | sort -V | tail -n 1 || true)"
+            LAST_TAG="$(git tag --list | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1 || true)"
 
             if [ -z "$LAST_TAG" ]; then
               MAJOR=0
@@ -62,21 +70,67 @@ jobs:
               PATCH=0
             else
               BASE="${LAST_TAG#v}"
-              BASE="${BASE%-rc}"
               IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE"
             fi
 
             PATCH=$((PATCH + 1))
-            TAG="v${MAJOR}.${MINOR}.${PATCH}${SUFFIX}"
+            TAG="v${MAJOR}.${MINOR}.${PATCH}"
           else
             TAG="${GITHUB_REF_NAME}"
+            LAST_TAG="$(git describe --tags --abbrev=0 "${TAG}^" 2>/dev/null || true)"
           fi
 
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          echo "Resolved tag: $TAG"
+          echo "previous_tag=${LAST_TAG:-}" >> "$GITHUB_OUTPUT"
+          echo "Resolved tag: $TAG (previous: ${LAST_TAG:-none})"
+
+      - name: Update anytype-heart version
+        if: github.event_name == 'repository_dispatch' && steps.resolve-tag.outputs.is_prerelease != 'true'
+        shell: bash
+        run: |
+          go get github.com/anyproto/anytype-heart@${{ github.event.client_payload.version }}
+          go mod tidy
+
+      - name: Check if heart bump is needed
+        id: bump-check
+        if: github.event_name == 'repository_dispatch'
+        env:
+          HEART_VERSION: ${{ github.event.client_payload.version }}
+          IS_PRERELEASE: ${{ steps.resolve-tag.outputs.is_prerelease }}
+        shell: bash
+        run: |
+          if [ "${IS_PRERELEASE}" == "true" ]; then
+            echo "${HEART_VERSION} is a prerelease; skipping commit and release"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          elif git diff --quiet -- go.mod go.sum; then
+            echo "Already at ${HEART_VERSION}; skipping release"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Commit bump and create release tag
+        if: github.event_name == 'repository_dispatch' && steps.bump-check.outputs.skip != 'true'
+        env:
+          TAG: ${{ steps.resolve-tag.outputs.tag }}
+          HEART_VERSION: ${{ github.event.client_payload.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add go.mod go.sum
+          git commit -m "Bump anytype-heart to ${HEART_VERSION}"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+
+          git tag "$TAG"
+          git push origin "$TAG"
 
       - name: Set build variables
         id: build-vars
+        if: steps.bump-check.outputs.skip != 'true'
         run: |
           if [ "${{ github.event_name }}" == "repository_dispatch" ]; then
             echo "version=${{ steps.resolve-tag.outputs.tag }}" >> $GITHUB_OUTPUT
@@ -84,53 +138,130 @@ jobs:
             echo "version=${{ github.ref_name }}" >> $GITHUB_OUTPUT
           fi
           echo "time=$(date -u '+%Y-%m-%d %H:%M:%S')" >> $GITHUB_OUTPUT
-          echo "commit=$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
+          echo "commit=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          echo "revision=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
 
-      - name: Update anytype-heart version
-        if: github.event_name == 'repository_dispatch'
-        shell: bash
+  build:
+    name: Build ${{ matrix.target }}
+    needs: prepare
+    if: needs.prepare.outputs.skip != 'true'
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - target: darwin-amd64
+            os: macos-15
+          - target: darwin-arm64
+            os: macos-15
+          - target: linux-amd64
+            os: ubuntu-latest
+            musl_cc: x86_64-linux-musl-gcc
+          - target: linux-arm64
+            os: ubuntu-24.04-arm
+            musl_cc: aarch64-linux-musl-gcc
+          - target: windows-amd64
+            os: ubuntu-latest
+
+    steps:
+      - name: Checkout release revision
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.prepare.outputs.revision }}
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Resolve tantivy version
+        id: tantivy
         run: |
-          go get github.com/anyproto/anytype-heart@${{ github.event.client_payload.version }}
-          go mod tidy
+          echo "version=$(grep anyproto/tantivy-go go.mod | awk '{print $2}')" >> "$GITHUB_OUTPUT"
 
-      - name: Install dependency mingw
+      - name: Cache tantivy library
+        uses: actions/cache@v4
+        with:
+          path: dist/tantivy-${{ matrix.target }}
+          key: tantivy-${{ matrix.target }}-${{ steps.tantivy.outputs.version }}
+
+      - name: Install mingw toolchain
+        if: matrix.target == 'windows-amd64'
         run: |
-          brew update
-          brew tap FiloSottile/musl-cross
-          brew install mingw-w64 musl-cross
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends gcc-mingw-w64-x86-64
 
-      - name: Cross-compile all platforms in parallel
+      - name: Build
+        if: matrix.musl_cc == ''
         env:
-          VERSION: ${{ steps.build-vars.outputs.version }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+          COMMIT: ${{ needs.prepare.outputs.commit }}
+          BUILD_TIME: ${{ needs.prepare.outputs.build-time }}
           GIT_STATE: clean
-          COMMIT: ${{ steps.build-vars.outputs.commit }}
-          BUILD_TIME: ${{ steps.build-vars.outputs.time }}
         run: |
-          make cross-compile
+          make build-${{ matrix.target }}
           ls -la dist/
 
-      - name: Compress binaries
+      - name: Build static musl binary
+        if: matrix.musl_cc != ''
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+          COMMIT: ${{ needs.prepare.outputs.commit }}
+          BUILD_TIME: ${{ needs.prepare.outputs.build-time }}
+          GIT_STATE: clean
+          MUSL_CC: ${{ matrix.musl_cc }}
+          TARGET: ${{ matrix.target }}
         run: |
+          set -euo pipefail
+          GO_VERSION="$(go env GOVERSION)"
+          GO_MOD_CACHE="$(go env GOMODCACHE)"
+          GO_BUILD_CACHE="$(go env GOCACHE)"
+          mkdir -p "$GO_MOD_CACHE" "$GO_BUILD_CACHE"
+          docker run --rm \
+            -v "$PWD:/src" -w /src \
+            -v "$GO_MOD_CACHE:/go/pkg/mod" \
+            -v "$GO_BUILD_CACHE:/root/.cache/go-build" \
+            -e VERSION -e COMMIT -e BUILD_TIME -e GIT_STATE -e MUSL_CC -e TARGET \
+            "golang:${GO_VERSION#go}-alpine" \
+            sh -c 'apk add --no-cache gcc musl-dev make curl tar git &&
+                   git config --global --add safe.directory /src &&
+                   ln -sf /usr/bin/gcc "/usr/local/bin/${MUSL_CC}" &&
+                   make "build-${TARGET}"'
+          sudo chown -R "$(id -u):$(id -g)" "$GO_MOD_CACHE" "$GO_BUILD_CACHE" dist
+          ls -la dist/
+
+      - name: Compress binary
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
           cd dist
-          cp anytype-darwin-amd64 anytype && tar czf "../anytype-cli-${{ steps.build-vars.outputs.version }}-darwin-amd64.tar.gz" anytype && rm anytype
-          cp anytype-darwin-arm64 anytype && tar czf "../anytype-cli-${{ steps.build-vars.outputs.version }}-darwin-arm64.tar.gz" anytype && rm anytype
-          cp anytype-windows-amd64.exe anytype.exe && zip "../anytype-cli-${{ steps.build-vars.outputs.version }}-windows-amd64.zip" anytype.exe && rm anytype.exe
-          cp anytype-linux-amd64 anytype && tar czf "../anytype-cli-${{ steps.build-vars.outputs.version }}-linux-amd64.tar.gz" anytype && rm anytype
-          cp anytype-linux-arm64 anytype && tar czf "../anytype-cli-${{ steps.build-vars.outputs.version }}-linux-arm64.tar.gz" anytype && rm anytype
+          if [ "$TARGET" = "windows-amd64" ]; then
+            cp anytype-windows-amd64.exe anytype.exe
+            zip "../anytype-cli-${VERSION}-${TARGET}.zip" anytype.exe
+          else
+            cp "anytype-${TARGET}" anytype
+            tar czf "../anytype-cli-${VERSION}-${TARGET}.tar.gz" anytype
+          fi
           cd ..
           ls -la anytype-cli-*
 
-      - name: Upload artifacts
+      - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
-          name: anytype-cli-releases
+          name: anytype-cli-${{ matrix.target }}
           path: |
             anytype-cli-*.tar.gz
             anytype-cli-*.zip
 
   create-release:
     name: Create GitHub release
-    needs: build-all-platforms
+    needs:
+      - prepare
+      - build
+    if: needs.prepare.outputs.skip != 'true'
     runs-on: ubuntu-latest
     outputs:
       body: ${{ steps.release-info.outputs.body }}
@@ -141,22 +272,55 @@ jobs:
       - name: Download artifacts
         uses: actions/download-artifact@v8
         with:
-          name: anytype-cli-releases
+          pattern: anytype-cli-*
+          merge-multiple: true
           path: artifacts
 
       - name: List artifacts
         run: ls -la artifacts/
 
-      - name: Create Release & Upload Assets
-        id: create-release
+      - name: Compose release body
+        if: github.event_name == 'repository_dispatch'
+        shell: bash
+        env:
+          HEART_VERSION: ${{ needs.prepare.outputs.heart-version }}
+          TAG: ${{ needs.prepare.outputs.version }}
+          PREVIOUS_TAG: ${{ needs.prepare.outputs.previous-tag }}
+        run: |
+          {
+            echo "## What's Changed"
+            echo "* Update anytype-heart to ${HEART_VERSION}"
+            if [ -n "${PREVIOUS_TAG}" ]; then
+              echo ""
+              echo "**Full Changelog**: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/compare/${PREVIOUS_TAG}...${TAG}"
+            fi
+          } > release-body.md
+
+      - name: Create Release & Upload Assets (heart trigger)
+        id: create-release-dispatch
+        if: github.event_name == 'repository_dispatch'
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: ${{ needs.build-all-platforms.outputs.version }}
-          name: ${{ needs.build-all-platforms.outputs.version }}
+          tag_name: ${{ needs.prepare.outputs.version }}
+          name: ${{ needs.prepare.outputs.version }}
+          files: artifacts/anytype-cli-*
+          body_path: release-body.md
+          generate_release_notes: false
+          draft: false
+          prerelease: false
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create Release & Upload Assets (tag push)
+        id: create-release-tag
+        if: github.event_name != 'repository_dispatch'
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ needs.prepare.outputs.version }}
+          name: ${{ needs.prepare.outputs.version }}
           files: artifacts/anytype-cli-*
           generate_release_notes: true
           draft: false
-          prerelease: ${{ contains(needs.build-all-platforms.outputs.version, '-rc') }}
+          prerelease: ${{ contains(needs.prepare.outputs.version, '-rc') }}
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Get release info
@@ -164,7 +328,7 @@ jobs:
         uses: actions/github-script@v9
         with:
           script: |
-            const release_id = Number('${{ steps.create-release.outputs.id }}');
+            const release_id = Number('${{ steps.create-release-dispatch.outputs.id || steps.create-release-tag.outputs.id }}');
             const { data } = await github.rest.repos.getRelease({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -177,8 +341,10 @@ jobs:
   push-docker-image:
     name: Build Docker image and push to registry
     needs:
-      - build-all-platforms
+      - prepare
+      - build
       - create-release
+    if: needs.prepare.outputs.skip != 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -190,7 +356,7 @@ jobs:
         id: release-version
         shell: bash
         run: |
-          tag="${{ needs.build-all-platforms.outputs.version }}"
+          tag="${{ needs.prepare.outputs.version }}"
           ver="${tag#v}"
           echo "RELEASE_VERSION=${ver}" >> "$GITHUB_OUTPUT"
 
@@ -203,14 +369,15 @@ jobs:
       - name: Download release artifacts
         uses: actions/download-artifact@v8
         with:
-          name: anytype-cli-releases
+          pattern: anytype-cli-linux-*
+          merge-multiple: true
           path: artifacts
 
       - name: Extract linux binaries
         run: |
-          tar -xzf artifacts/anytype-cli-${{ needs.build-all-platforms.outputs.version }}-linux-amd64.tar.gz
+          tar -xzf artifacts/anytype-cli-${{ needs.prepare.outputs.version }}-linux-amd64.tar.gz
           mv anytype anytype-linux-amd64
-          tar -xzf artifacts/anytype-cli-${{ needs.build-all-platforms.outputs.version }}-linux-arm64.tar.gz
+          tar -xzf artifacts/anytype-cli-${{ needs.prepare.outputs.version }}-linux-arm64.tar.gz
           mv anytype anytype-linux-arm64
           ls -la anytype-linux-*
 
@@ -227,25 +394,6 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push to GitHub Container Registry
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          file: Dockerfile
-          platforms: ${{ env.DEPLOY_PLATFORMS }}
-          push: true
-          provenance: false
-          tags: |
-            ghcr.io/${{ github.repository }}:latest
-            ghcr.io/${{ github.repository }}:${{ needs.build-all-platforms.outputs.version }}
-            ghcr.io/${{ github.repository }}:v${{ steps.release-version.outputs.RELEASE_VERSION }}
-          labels: |
-            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.description=Anytype CLI - Command-line interface for Anytype with embedded gRPC server
-            org.opencontainers.image.licenses=MIT
-            org.opencontainers.image.version=${{ steps.release-version.outputs.RELEASE_VERSION }}
-            org.opencontainers.image.revision=${{ github.sha }}
-
       - name: Login to Docker Hub
         uses: docker/login-action@v4
         with:
@@ -253,7 +401,7 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build and push to Docker Hub
+      - name: Build and push to both registries
         uses: docker/build-push-action@v7
         with:
           context: .
@@ -261,21 +409,27 @@ jobs:
           platforms: ${{ env.DEPLOY_PLATFORMS }}
           push: true
           provenance: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
           tags: |
+            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/${{ github.repository }}:${{ needs.prepare.outputs.version }}
+            ghcr.io/${{ github.repository }}:v${{ steps.release-version.outputs.RELEASE_VERSION }}
             docker.io/${{ github.repository }}:latest
-            docker.io/${{ github.repository }}:${{ needs.build-all-platforms.outputs.version }}
+            docker.io/${{ github.repository }}:${{ needs.prepare.outputs.version }}
             docker.io/${{ github.repository }}:v${{ steps.release-version.outputs.RELEASE_VERSION }}
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.description=Anytype CLI - Command-line interface for Anytype with embedded gRPC server
             org.opencontainers.image.licenses=MIT
             org.opencontainers.image.version=${{ steps.release-version.outputs.RELEASE_VERSION }}
-            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.revision=${{ needs.prepare.outputs.revision }}
 
   notify:
     name: Notify Slack
     needs:
-      - build-all-platforms
+      - prepare
+      - build
       - create-release
       - push-docker-image
     if: ${{ always() }}
