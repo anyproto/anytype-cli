@@ -209,3 +209,53 @@ func TestValidateAPIKeyName(t *testing.T) {
 		})
 	}
 }
+
+func TestGrantWorksOnV1(t *testing.T) {
+	tests := []struct {
+		name  string
+		grant *model.AccountAuthAppGrant
+		want  bool
+	}{
+		{"all spaces read-write", &model.AccountAuthAppGrant{AllSpaces: true, Perm: model.AccountAuthAppGrant_ReadWrite}, true},
+		{"all spaces read-only", &model.AccountAuthAppGrant{AllSpaces: true, Perm: model.AccountAuthAppGrant_Read}, false},
+		{"listed spaces read-write", &model.AccountAuthAppGrant{SpaceIds: []string{"a"}, Perm: model.AccountAuthAppGrant_ReadWrite}, false},
+		{"listed spaces read-only", &model.AccountAuthAppGrant{SpaceIds: []string{"a"}}, false},
+		{"no grant", nil, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := GrantWorksOnV1(tt.grant); got != tt.want {
+				t.Errorf("GrantWorksOnV1() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestDescribeGrant(t *testing.T) {
+	tests := []struct {
+		name     string
+		grant    *model.AccountAuthAppGrant
+		resolved []ResolvedSpace
+		want     string
+	}{
+		{"all spaces read-write", &model.AccountAuthAppGrant{AllSpaces: true, Perm: model.AccountAuthAppGrant_ReadWrite}, nil, "read-write, all spaces"},
+		{"all spaces read-only", &model.AccountAuthAppGrant{AllSpaces: true}, nil, "read-only, all spaces"},
+		{
+			"named spaces",
+			&model.AccountAuthAppGrant{SpaceIds: []string{"bafyreia.one", "bafyreitech.tech"}},
+			[]ResolvedSpace{{Id: "bafyreia.one", Name: "Personal"}, {Id: "bafyreitech.tech", IsTech: true}},
+			"read-only, 2 spaces: Personal (bafyreia.one), tech space (bafyreitech.tech)",
+		},
+		{"spaces without names", &model.AccountAuthAppGrant{SpaceIds: []string{"bafyreia.one"}, Perm: model.AccountAuthAppGrant_ReadWrite}, nil, "read-write, 1 space: bafyreia.one"},
+		{"no grant", nil, nil, "unrestricted"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := DescribeGrant(tt.grant, tt.resolved); got != tt.want {
+				t.Errorf("DescribeGrant() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}

@@ -146,3 +146,47 @@ func ValidateAPIKeyName(name string) error {
 	}
 	return nil
 }
+
+// GrantWorksOnV1 reports whether the JSON API v1 accepts a key with this grant.
+// v1 cannot enforce space grants, so it only admits keys that grant no less
+// than an unrestricted key: no grant, or all spaces with read-write.
+func GrantWorksOnV1(grant *model.AccountAuthAppGrant) bool {
+	return grant == nil || (grant.AllSpaces && grant.Perm == model.AccountAuthAppGrant_ReadWrite)
+}
+
+// DescribeGrant renders a grant for people, naming spaces where resolved names
+// are known.
+func DescribeGrant(grant *model.AccountAuthAppGrant, resolved []ResolvedSpace) string {
+	if grant == nil {
+		return "unrestricted"
+	}
+	perm := "read-only"
+	if grant.Perm == model.AccountAuthAppGrant_ReadWrite {
+		perm = "read-write"
+	}
+	if grant.AllSpaces {
+		return perm + ", all spaces"
+	}
+
+	byId := make(map[string]ResolvedSpace, len(resolved))
+	for _, space := range resolved {
+		byId[space.Id] = space
+	}
+	names := make([]string, len(grant.SpaceIds))
+	for i, id := range grant.SpaceIds {
+		space, ok := byId[id]
+		switch {
+		case ok && space.IsTech:
+			names[i] = fmt.Sprintf("tech space (%s)", id)
+		case ok && space.Name != "":
+			names[i] = fmt.Sprintf("%s (%s)", space.Name, id)
+		default:
+			names[i] = id
+		}
+	}
+	noun := "spaces"
+	if len(names) == 1 {
+		noun = "space"
+	}
+	return fmt.Sprintf("%s, %d %s: %s", perm, len(names), noun, strings.Join(names, ", "))
+}
