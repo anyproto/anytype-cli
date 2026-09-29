@@ -91,6 +91,7 @@ func (s *Server) Start(grpcAddr, grpcWebAddr string) error {
 	unaryInterceptors = append(unaryInterceptors, grpcprocess.ProcessInfoInterceptor(
 		"/anytype.ClientCommands/AccountLocalLinkNewChallenge",
 	))
+	unaryInterceptors = append(unaryInterceptors, originInterceptor())
 
 	s.grpcServer = grpc.NewServer(
 		grpc.MaxRecvMsgSize(20*1024*1024),
@@ -103,15 +104,12 @@ func (s *Server) Start(grpcAddr, grpcWebAddr string) error {
 		grpc_prometheus.EnableHandlingTimeHistogram()
 	}
 
-	webrpc := grpcweb.WrapServer(
-		s.grpcServer,
-		grpcweb.WithOriginFunc(func(origin string) bool { return true }),
-		grpcweb.WithWebsockets(true),
-		grpcweb.WithWebsocketOriginFunc(func(req *http.Request) bool { return true }),
-	)
+	originPolicy := newOriginPolicy(os.Getenv(envAllowedOrigins), os.Getenv(envAllowedHosts))
+	withWebsockets := websocketsEnabled()
+	webrpc := grpcweb.WrapServer(s.grpcServer, wrapOptions(originPolicy, withWebsockets)...)
 
 	s.webServer = &http.Server{
-		Handler:           webrpc,
+		Handler:           newProxyHandler(webrpc, originPolicy, withWebsockets),
 		ReadHeaderTimeout: 30 * time.Second,
 	}
 
