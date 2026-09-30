@@ -103,6 +103,9 @@ func (p *Program) Start(s service.Service) error {
 		return fmt.Errorf("timeout waiting for server to start")
 	}
 
+	// The JSON API starts later, when an account logs in; say where it will be.
+	output.Info("JSON API will listen on %s once an account is logged in", config.APIURL(p.apiListenAddr))
+
 	if p.OnStarted != nil {
 		p.OnStarted()
 	}
