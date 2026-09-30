@@ -94,3 +94,65 @@ func TestGetConfigManager(t *testing.T) {
 		t.Error("GetConfigManager should initialize with a valid file path")
 	}
 }
+
+func newTestConfigManager(t *testing.T, cfg *Config) *ConfigManager {
+	t.Helper()
+	return &ConfigManager{config: cfg, filePath: filepath.Join(t.TempDir(), "config.json")}
+}
+
+func TestApiListenAddrPersists(t *testing.T) {
+	cm := newTestConfigManager(t, &Config{})
+
+	if err := cm.SetApiListenAddr("0.0.0.0:4000"); err != nil {
+		t.Fatalf("SetApiListenAddr: %v", err)
+	}
+
+	cm2 := &ConfigManager{config: &Config{}, filePath: cm.filePath}
+	if err := cm2.Load(); err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if got := cm2.Get().ApiListenAddr; got != "0.0.0.0:4000" {
+		t.Errorf("ApiListenAddr = %q, want %q", got, "0.0.0.0:4000")
+	}
+}
+
+func TestClearAccountKeepsApiListenAddr(t *testing.T) {
+	cm := newTestConfigManager(t, &Config{
+		AccountId:     "acc",
+		TechSpaceId:   "tech",
+		AccountKey:    "key",
+		SessionToken:  "token",
+		ApiListenAddr: "0.0.0.0:4000",
+	})
+	if err := cm.Save(); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	if err := cm.ClearAccount(); err != nil {
+		t.Fatalf("ClearAccount: %v", err)
+	}
+
+	cm2 := &ConfigManager{config: &Config{}, filePath: cm.filePath}
+	if err := cm2.Load(); err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	want := Config{ApiListenAddr: "0.0.0.0:4000"}
+	if got := *cm2.Get(); got != want {
+		t.Errorf("config after ClearAccount = %+v, want %+v", got, want)
+	}
+}
+
+func TestClearAccountRemovesFileWithoutSettings(t *testing.T) {
+	cm := newTestConfigManager(t, &Config{AccountId: "acc", SessionToken: "token"})
+	if err := cm.Save(); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	if err := cm.ClearAccount(); err != nil {
+		t.Fatalf("ClearAccount: %v", err)
+	}
+
+	if _, err := os.Stat(cm.filePath); !os.IsNotExist(err) {
+		t.Errorf("config file still exists after clearing an account with no settings to keep (err = %v)", err)
+	}
+}

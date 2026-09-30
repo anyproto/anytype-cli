@@ -1,6 +1,7 @@
 package serviceprogram
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/anyproto/anytype-cli/core/config"
@@ -88,6 +89,39 @@ func TestGetServiceWithAddress(t *testing.T) {
 
 			if svc == nil {
 				t.Fatal("GetServiceWithAddress() returned nil service")
+			}
+		})
+	}
+}
+
+func TestStartCallsOnStartedOnlyAfterServerStarts(t *testing.T) {
+	tests := []struct {
+		name        string
+		startErr    error
+		wantStarted bool
+	}{
+		{"server starts", nil, true},
+		{"server fails to listen", errors.New("bind: address already in use"), false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := New(config.DefaultAPIAddress)
+			p.startServer = func(grpcAddr, grpcWebAddr string) error { return tt.startErr }
+			started := false
+			p.OnStarted = func() { started = true }
+
+			err := p.Start(nil)
+			if p.cancel != nil {
+				p.cancel()
+			}
+			p.wg.Wait()
+
+			if (err != nil) != (tt.startErr != nil) {
+				t.Fatalf("Start() error = %v, want error %v", err, tt.startErr != nil)
+			}
+			if started != tt.wantStarted {
+				t.Errorf("OnStarted called = %v, want %v", started, tt.wantStarted)
 			}
 		})
 	}

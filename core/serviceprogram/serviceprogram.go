@@ -63,6 +63,13 @@ type Program struct {
 	startErr      error
 	startCh       chan struct{}
 	apiListenAddr string
+
+	// OnStarted, if set, runs once the gRPC servers are listening, before
+	// Start returns. It does not run when the server fails to start.
+	OnStarted func()
+
+	// startServer starts the gRPC servers; replaceable in tests.
+	startServer func(grpcAddr, grpcWebAddr string) error
 }
 
 func New(apiListenAddr string) *Program {
@@ -75,6 +82,9 @@ func New(apiListenAddr string) *Program {
 func (p *Program) Start(s service.Service) error {
 	p.ctx, p.cancel = context.WithCancel(context.Background())
 	p.server = grpcserver.NewServer()
+	if p.startServer == nil {
+		p.startServer = p.server.Start
+	}
 
 	p.wg.Add(1)
 	go p.run()
@@ -93,6 +103,9 @@ func (p *Program) Start(s service.Service) error {
 		return fmt.Errorf("timeout waiting for server to start")
 	}
 
+	if p.OnStarted != nil {
+		p.OnStarted()
+	}
 	return nil
 }
 
@@ -115,7 +128,7 @@ func (p *Program) run() {
 	defer p.wg.Done()
 	defer close(p.startCh)
 
-	if err := p.server.Start(config.DefaultGRPCAddress, config.DefaultGRPCWebAddress); err != nil {
+	if err := p.startServer(config.DefaultGRPCAddress, config.DefaultGRPCWebAddress); err != nil {
 		p.startErr = err
 		return
 	}
@@ -123,8 +136,12 @@ func (p *Program) run() {
 	// Signal successful start
 	p.startCh <- struct{}{}
 
-	// Wait a moment for server to be ready
-	time.Sleep(2 * time.Second)
+	// Wait a moment for server to be ready; skip auto-login if stopped meanwhile
+	select {
+	case <-time.After(2 * time.Second):
+	case <-p.ctx.Done():
+		return
+	}
 
 	go p.attemptAutoLogin()
 
@@ -152,6 +169,7 @@ func (p *Program) attemptAutoLogin() {
 			output.Info("Failed to auto-login with account key after %d attempts: %v", maxRetries, err)
 		} else {
 			output.Success("Successfully logged in using stored account key")
+			output.Info("JSON API listening on %s", config.APIURL(p.apiListenAddr))
 			return
 		}
 	}

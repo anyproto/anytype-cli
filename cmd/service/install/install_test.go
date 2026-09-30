@@ -31,8 +31,8 @@ func TestInstallCmd_ListenAddressFlag(t *testing.T) {
 		t.Errorf("listen-address default = %v, want %v", flag.DefValue, config.DefaultAPIAddress)
 	}
 
-	if flag.Usage != "API listen address in `host:port` format" {
-		t.Errorf("listen-address usage = %v, want 'API listen address in `host:port` format'", flag.Usage)
+	if flag.Usage != "JSON API listen address in `host:port` format (remembered for later commands)" {
+		t.Errorf("listen-address usage = %v, want %q", flag.Usage, "JSON API listen address in `host:port` format (remembered for later commands)")
 	}
 }
 

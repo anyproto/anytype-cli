@@ -88,6 +88,11 @@ func NewStatusCmd() *cobra.Command {
 			}
 
 			output.Print("  - Active session: \033[1m%v\033[0m", isLoggedIn)
+			if isLoggedIn {
+				storedAddr, _ := config.GetApiListenAddrFromConfig()
+				apiAddr := config.ResolveAPIListenAddr("", false, storedAddr)
+				output.Print("  - JSON API: \033[1m%s\033[0m", config.APIURL(apiAddr))
+			}
 
 			if hasAccountKey {
 				if len(accountKey) > 8 {

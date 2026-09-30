@@ -128,7 +128,7 @@ By default, the server binds to `127.0.0.1` (localhost only) on ports 31010-3101
 | 31012 | API      | HTTP API server endpoint ⭐ |
 
 
-You can change the API listen address using `--listen-address` (e.g., `--listen-address 0.0.0.0:31012`). For remote access, you can also use a reverse proxy, SSH tunnel, or Docker port mapping to expose the local ports.
+You can change the JSON API listen address with `--listen-address` on `serve`, `service install`, `auth login` or `auth create` (e.g., `--listen-address 0.0.0.0:31012`). The address is remembered, including across logout, so later commands use it without the flag. The JSON API starts once an account is logged in; `anytype auth status` and the login commands print its address. For remote access, you can also use a reverse proxy, SSH tunnel, or Docker port mapping to expose the local ports.
 
 The server only accepts requests whose `Host` is `localhost` or an IP address, and browser requests from local origins. If you reach it by another hostname (for example through a reverse proxy) or from a web page on another origin, allow them explicitly in the server's environment:
 

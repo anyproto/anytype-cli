@@ -17,6 +17,9 @@ type Config struct {
 	// WARNING: This is insecure and should only be used on headless servers
 	AccountKey   string `json:"accountKey,omitempty"`
 	SessionToken string `json:"sessionToken,omitempty"`
+	// ApiListenAddr is the JSON API address last chosen with --listen-address.
+	// It is a server setting, so it survives logout.
+	ApiListenAddr string `json:"apiListenAddr,omitempty"`
 }
 
 var (
@@ -149,6 +152,31 @@ func (cm *ConfigManager) SetNetworkId(networkId string) error {
 	cm.config.NetworkId = networkId
 	cm.mu.Unlock()
 
+	return cm.Save()
+}
+
+func (cm *ConfigManager) SetApiListenAddr(addr string) error {
+	cm.mu.Lock()
+	cm.config.ApiListenAddr = addr
+	cm.mu.Unlock()
+
+	return cm.Save()
+}
+
+// ClearAccount removes everything tied to the logged-in account and keeps
+// server settings. The file is deleted when no settings remain.
+func (cm *ConfigManager) ClearAccount() error {
+	cm.mu.Lock()
+	keep := &Config{ApiListenAddr: cm.config.ApiListenAddr}
+	cm.mu.Unlock()
+
+	if keep.ApiListenAddr == "" {
+		return cm.Delete()
+	}
+
+	cm.mu.Lock()
+	cm.config = keep
+	cm.mu.Unlock()
 	return cm.Save()
 }
 

@@ -162,3 +162,21 @@ func ReadNetworkIdFromYAML(path string) (string, error) {
 
 	return cfg.NetworkId, nil
 }
+
+func GetApiListenAddrFromConfig() (string, error) {
+	configMgr := GetConfigManager()
+	if err := configMgr.Load(); err != nil {
+		return "", fmt.Errorf("failed to load config: %w", err)
+	}
+
+	return configMgr.Get().ApiListenAddr, nil
+}
+
+func SetApiListenAddrToConfig(addr string) error {
+	configMgr := GetConfigManager()
+	if err := configMgr.Load(); err != nil {
+		return fmt.Errorf("failed to load config: %w", err)
+	}
+
+	return configMgr.SetApiListenAddr(addr)
+}

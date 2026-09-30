@@ -26,9 +26,15 @@ func NewCreateCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := args[0]
 
-			accountKey, accountId, savedToKeyring, err := core.CreateWallet(name, rootPath, listenAddress, networkConfigPath)
+			apiAddr, explicit := cmdutil.APIListenAddr(cmd, listenAddress)
+			accountKey, accountId, savedToKeyring, err := core.CreateWallet(name, rootPath, apiAddr, networkConfigPath)
 			if err != nil {
 				return output.Error("Failed to create account: %w", err)
+			}
+			if explicit {
+				if err := config.SetApiListenAddrToConfig(apiAddr); err != nil {
+					output.Warning("Failed to remember the JSON API address: %v", err)
+				}
 			}
 
 			output.Success("Bot account created successfully!")
@@ -70,13 +76,14 @@ func NewCreateCmd() *cobra.Command {
 			} else {
 				output.Success("Account key saved to config file.")
 			}
+			output.Info("JSON API listening on %s", config.APIURL(apiAddr))
 
 			return nil
 		},
 	}
 
 	cmd.Flags().StringVar(&rootPath, "root-path", "", "Root path for account data")
-	cmd.Flags().StringVar(&listenAddress, "listen-address", config.DefaultAPIAddress, "API listen address in `host:port` format")
+	cmdutil.AddListenAddressFlag(cmd, &listenAddress)
 	cmd.Flags().StringVar(&networkConfigPath, "network-config", "", "Path to custom network configuration YAML (for self-hosted)")
 
 	return cmd

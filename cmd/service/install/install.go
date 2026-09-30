@@ -3,6 +3,7 @@ package install
 import (
 	"github.com/spf13/cobra"
 
+	"github.com/anyproto/anytype-cli/cmd/cmdutil"
 	"github.com/anyproto/anytype-cli/core/config"
 	"github.com/anyproto/anytype-cli/core/output"
 	"github.com/anyproto/anytype-cli/core/serviceprogram"
@@ -15,7 +16,9 @@ func NewInstallCmd() *cobra.Command {
 		Use:   "install",
 		Short: "Install as a user service",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			s, err := serviceprogram.GetServiceWithAddress(listenAddress)
+			apiAddr, explicit := cmdutil.APIListenAddr(cmd, listenAddress)
+
+			s, err := serviceprogram.GetServiceWithAddress(apiAddr)
 			if err != nil {
 				return output.Error("Failed to create service: %w", err)
 			}
@@ -25,10 +28,14 @@ func NewInstallCmd() *cobra.Command {
 				return output.Error("Failed to install service: %w", err)
 			}
 
-			output.Success("anytype service installed successfully")
-			if listenAddress != config.DefaultAPIAddress {
-				output.Info("API will listen on %s", listenAddress)
+			if explicit {
+				if err := config.SetApiListenAddrToConfig(apiAddr); err != nil {
+					output.Warning("Failed to remember the JSON API address: %v", err)
+				}
 			}
+
+			output.Success("anytype service installed successfully")
+			output.Info("JSON API will listen on %s once an account is logged in", config.APIURL(apiAddr))
 			output.Print("\nTo manage the service:")
 			output.Print("  Start:   anytype service start")
 			output.Print("  Stop:    anytype service stop")
@@ -39,7 +46,7 @@ func NewInstallCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&listenAddress, "listen-address", config.DefaultAPIAddress, "API listen address in `host:port` format")
+	cmdutil.AddListenAddressFlag(cmd, &listenAddress)
 
 	return cmd
 }
