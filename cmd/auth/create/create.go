@@ -76,7 +76,7 @@ func NewCreateCmd() *cobra.Command {
 			} else {
 				output.Success("Account key saved to config file.")
 			}
-			output.Info("JSON API listening on %s", config.APIURL(apiAddr))
+			output.Banner("JSON API listening on " + config.APIURL(apiAddr))
 
 			return nil
 		},

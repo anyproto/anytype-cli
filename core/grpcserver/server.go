@@ -47,9 +47,7 @@ func NewServer() *Server {
 func (s *Server) Start(grpcAddr, grpcWebAddr string) error {
 	app.StartWarningAfter = time.Second * 5
 
-	if os.Getenv("ANYTYPE_LOG_LEVEL") == "" {
-		os.Setenv("ANYTYPE_LOG_LEVEL", "ERROR")
-	}
+	applyLogLevel()
 
 	metrics.Service.InitWithKeys(metrics.DefaultInHouseKey)
 
@@ -155,4 +153,18 @@ func (s *Server) Stop() error {
 
 	log.Info("Servers stopped")
 	return nil
+}
+
+// defaultLogLevel applies when ANYTYPE_LOG_LEVEL is unset.
+const defaultLogLevel = "ERROR"
+
+// applyLogLevel applies ANYTYPE_LOG_LEVEL to heart's loggers right away.
+// heart applies it itself only when an account logs in (InitialSetParameters),
+// so without this everything logged before login uses the logger's built-in
+// DEBUG default.
+func applyLogLevel() {
+	if os.Getenv("ANYTYPE_LOG_LEVEL") == "" {
+		os.Setenv("ANYTYPE_LOG_LEVEL", defaultLogLevel)
+	}
+	logging.SetLogLevels(os.Getenv("ANYTYPE_LOG_LEVEL"))
 }

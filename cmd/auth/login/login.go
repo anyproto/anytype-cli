@@ -30,7 +30,7 @@ func NewLoginCmd() *cobra.Command {
 				}
 			}
 			output.Success("Successfully logged in")
-			output.Info("JSON API listening on %s", config.APIURL(apiAddr))
+			output.Banner("JSON API listening on " + config.APIURL(apiAddr))
 			return nil
 
 		},

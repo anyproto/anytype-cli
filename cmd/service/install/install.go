@@ -35,7 +35,7 @@ func NewInstallCmd() *cobra.Command {
 			}
 
 			output.Success("anytype service installed successfully")
-			output.Info("JSON API will listen on %s once an account is logged in", config.APIURL(apiAddr))
+			output.Banner("JSON API: "+config.APIURL(apiAddr), "starts when an account is logged in")
 			output.Print("\nTo manage the service:")
 			output.Print("  Start:   anytype service start")
 			output.Print("  Stop:    anytype service stop")

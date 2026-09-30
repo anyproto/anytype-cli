@@ -87,3 +87,27 @@ func TestPrint(t *testing.T) {
 		t.Errorf("Print() output = %v, want 'test 123 message'", output)
 	}
 }
+
+func TestFormatBanner(t *testing.T) {
+	got := FormatBanner("JSON API: http://127.0.0.1:31012", "starts when an account is logged in")
+	want := strings.Join([]string{
+		"╭──────────────────────────────────────╮",
+		"│  JSON API: http://127.0.0.1:31012    │",
+		"│  starts when an account is logged in │",
+		"╰──────────────────────────────────────╯",
+	}, "\n") + "\n"
+	if got != want {
+		t.Errorf("FormatBanner() =\n%s\nwant\n%s", got, want)
+	}
+}
+
+func TestFormatBannerCountsRunesNotBytes(t *testing.T) {
+	got := FormatBanner("café")
+	lines := strings.Split(strings.TrimSuffix(got, "\n"), "\n")
+	width := len([]rune(lines[0]))
+	for i, line := range lines {
+		if n := len([]rune(line)); n != width {
+			t.Errorf("line %d has %d runes, want %d: %q", i, n, width, line)
+		}
+	}
+}
