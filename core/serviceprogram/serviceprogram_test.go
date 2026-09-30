@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/anyproto/anytype-cli/core/config"
+	"github.com/anyproto/anytype-cli/core/output"
 )
 
 func TestNew(t *testing.T) {
@@ -147,7 +148,7 @@ func captureStdout(t *testing.T, fn func()) string {
 }
 
 func TestStartPrintsJSONAPIAddress(t *testing.T) {
-	const want = "JSON API will listen on http://127.0.0.1:4000 once an account is logged in"
+	want := output.FormatBanner("JSON API: http://127.0.0.1:4000", "starts when an account is logged in")
 
 	tests := []struct {
 		name     string

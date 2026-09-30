@@ -104,7 +104,7 @@ func (p *Program) Start(s service.Service) error {
 	}
 
 	// The JSON API starts later, when an account logs in; say where it will be.
-	output.Info("JSON API will listen on %s once an account is logged in", config.APIURL(p.apiListenAddr))
+	output.Banner("JSON API: "+config.APIURL(p.apiListenAddr), "starts when an account is logged in")
 
 	if p.OnStarted != nil {
 		p.OnStarted()
@@ -172,7 +172,7 @@ func (p *Program) attemptAutoLogin() {
 			output.Info("Failed to auto-login with account key after %d attempts: %v", maxRetries, err)
 		} else {
 			output.Success("Successfully logged in using stored account key")
-			output.Info("JSON API listening on %s", config.APIURL(p.apiListenAddr))
+			output.Banner("JSON API listening on " + config.APIURL(p.apiListenAddr))
 			return
 		}
 	}
