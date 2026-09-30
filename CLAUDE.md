@@ -210,6 +210,8 @@ func NewConfigCmd() *cobra.Command {
 - The CLI provides commands to create, list, and revoke API keys
 - Keys are generated server-side and can be used for programmatic access
 - Keys are stored in the system keyring alongside tokens
+- Keys are created with `JsonAPI` scope and always carry a grant (spaces × read/read-write); the CLI never creates an unrestricted key. Grant logic lives in `core/apikeygrant.go`
+- `CreateAPIKey` probes the server for grant support and reads the key back, revoking it if the stored access differs from the request
 
 ### Testing Strategy
 - **Unit Tests**: Test individual functions and logic in isolation

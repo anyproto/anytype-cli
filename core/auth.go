@@ -223,7 +223,10 @@ func Logout() error {
 	}
 
 	configMgr := config.GetConfigManager()
-	if err := configMgr.Delete(); err != nil {
+	if err := configMgr.Load(); err != nil {
+		output.Warning("Failed to read config: %v", err)
+	}
+	if err := configMgr.ClearAccount(); err != nil {
 		output.Warning("Failed to clear config: %v", err)
 	}
 

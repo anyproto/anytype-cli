@@ -63,6 +63,16 @@ type Program struct {
 	startErr      error
 	startCh       chan struct{}
 	apiListenAddr string
+
+	// OnStarted, if set, runs once the gRPC servers are listening, before
+	// Start returns. It does not run when the server fails to start.
+	OnStarted func()
+
+	// startServer starts the gRPC servers; replaceable in tests.
+	startServer func(grpcAddr, grpcWebAddr string) error
+	// hasStoredAccount reports whether auto-login has a key to use;
+	// replaceable in tests.
+	hasStoredAccount func() bool
 }
 
 func New(apiListenAddr string) *Program {
@@ -75,6 +85,15 @@ func New(apiListenAddr string) *Program {
 func (p *Program) Start(s service.Service) error {
 	p.ctx, p.cancel = context.WithCancel(context.Background())
 	p.server = grpcserver.NewServer()
+	if p.startServer == nil {
+		p.startServer = p.server.Start
+	}
+	if p.hasStoredAccount == nil {
+		p.hasStoredAccount = func() bool {
+			key, _, err := core.GetStoredAccountKey()
+			return err == nil && key != ""
+		}
+	}
 
 	p.wg.Add(1)
 	go p.run()
@@ -93,6 +112,13 @@ func (p *Program) Start(s service.Service) error {
 		return fmt.Errorf("timeout waiting for server to start")
 	}
 
+	// The JSON API starts when an account logs in: show where it will be and,
+	// if there is nothing to auto-login with, how to log in.
+	output.Banner(startupBanner(config.APIURL(p.apiListenAddr), p.hasStoredAccount())...)
+
+	if p.OnStarted != nil {
+		p.OnStarted()
+	}
 	return nil
 }
 
@@ -115,7 +141,7 @@ func (p *Program) run() {
 	defer p.wg.Done()
 	defer close(p.startCh)
 
-	if err := p.server.Start(config.DefaultGRPCAddress, config.DefaultGRPCWebAddress); err != nil {
+	if err := p.startServer(config.DefaultGRPCAddress, config.DefaultGRPCWebAddress); err != nil {
 		p.startErr = err
 		return
 	}
@@ -123,8 +149,12 @@ func (p *Program) run() {
 	// Signal successful start
 	p.startCh <- struct{}{}
 
-	// Wait a moment for server to be ready
-	time.Sleep(2 * time.Second)
+	// Wait a moment for server to be ready; skip auto-login if stopped meanwhile
+	select {
+	case <-time.After(2 * time.Second):
+	case <-p.ctx.Done():
+		return
+	}
 
 	go p.attemptAutoLogin()
 
@@ -150,9 +180,33 @@ func (p *Program) attemptAutoLogin() {
 				continue
 			}
 			output.Info("Failed to auto-login with account key after %d attempts: %v", maxRetries, err)
+			output.Banner(autoLoginFailedBanner()...)
 		} else {
 			output.Success("Successfully logged in using stored account key")
 			return
 		}
+	}
+}
+
+// startupBanner is shown once the server is up. With a stored account key the
+// server logs in by itself, so the address is enough; without one, the JSON
+// API won't start until someone logs in.
+func startupBanner(url string, hasStoredAccount bool) []string {
+	if hasStoredAccount {
+		return []string{"JSON API: " + url}
+	}
+	return []string{
+		"JSON API: " + url + " (starts after login)",
+		"",
+		"Not logged in. In another terminal, run one of:",
+		"  anytype auth login           # existing bot account",
+		"  anytype auth create <name>   # new bot account",
+	}
+}
+
+func autoLoginFailedBanner() []string {
+	return []string{
+		"Auto-login failed, so the JSON API is not running.",
+		"In another terminal, run: anytype auth login",
 	}
 }

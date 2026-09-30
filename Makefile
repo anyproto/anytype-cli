@@ -29,7 +29,7 @@ TANTIVY_ASSET = $(TANTIVY_ASSET_$(GOOS)_$(GOARCH))
 TANTIVY_URL = https://github.com/anyproto/tantivy-go/releases/download/$(TANTIVY_VERSION)/$(TANTIVY_ASSET).tar.gz
 CGO_LDFLAGS := -L$(TANTIVY_LIB_PATH)
 
-GOLANGCI_LINT_VERSION := v2.7.2
+GOLANGCI_LINT_VERSION := v2.12.2
 
 ##@ Build
 

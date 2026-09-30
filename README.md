@@ -50,7 +50,7 @@ anytype space join <invite-link>
 anytype space list
 
 # Create an API key for programmatic access
-anytype auth apikey create "my-bot-api-key"
+anytype auth apikey create "my-bot-api-key" --all-spaces --read-write
 ```
 
 Once running, the API is available at `http://127.0.0.1:31012`. Use your API key to authenticate requests to the endpoints described on the [Developer Portal](https://developers.anytype.io). See [Network Configuration](#network-configuration) for remote access options.
@@ -128,7 +128,19 @@ By default, the server binds to `127.0.0.1` (localhost only) on ports 31010-3101
 | 31012 | API      | HTTP API server endpoint ⭐ |
 
 
-You can change the API listen address using `--listen-address` (e.g., `--listen-address 0.0.0.0:31012`). For remote access, you can also use a reverse proxy, SSH tunnel, or Docker port mapping to expose the local ports.
+You can change the JSON API listen address with `--listen-address` on `serve`, `service install`, `auth login` or `auth create` (e.g., `--listen-address 0.0.0.0:31012`). The address is remembered, including across logout, so later commands use it without the flag. The JSON API starts once an account is logged in. `serve` prints the address it will use at startup, and `anytype auth status` and the login commands print it too. For remote access, you can also use a reverse proxy, SSH tunnel, or Docker port mapping to expose the local ports.
+
+The server only accepts requests whose `Host` is `localhost` or an IP address, and browser requests from local origins. If you reach it by another hostname (for example through a reverse proxy) or from a web page on another origin, allow them explicitly in the server's environment:
+
+| Variable | Applies to | Value |
+| --- | --- | --- |
+| `ANYTYPE_API_ALLOWED_HOSTS` | HTTP API (31012) | Comma-separated hostnames, e.g. `anytype.example.com` |
+| `ANYTYPE_API_ALLOWED_ORIGINS` | HTTP API (31012) | Comma-separated exact origins, e.g. `https://app.example.com` |
+| `ANYTYPE_GRPCWEB_ALLOWED_HOSTS` | gRPC-Web (31011) | Comma-separated hostnames |
+| `ANYTYPE_GRPCWEB_ALLOWED_ORIGINS` | gRPC-Web (31011) | Comma-separated exact origins |
+| `ANYTYPE_GRPCWEB_ENABLE_WEBSOCKETS` | gRPC-Web (31011) | `1` to enable the WebSocket transport (off by default) |
+
+Set them where `anytype serve` runs: in your shell, your Docker/Compose environment, or the user service's definition.
 
 **Security note**: Always keep your API keys safe. If ports are exposed externally, third parties with your API key could gain unauthorized access to the spaces your headless instance has access to.
 
@@ -155,8 +167,9 @@ anytype auth logout
 Manage API keys for programmatic access:
 
 ```bash
-# Create a new API key
-anytype auth apikey create <name>
+# Create a new API key: choose its spaces and whether it can write
+anytype auth apikey create <name> --space <id|name> [--space ...] --read-only
+anytype auth apikey create <name> --all-spaces --read-write
 
 # List all API keys
 anytype auth apikey list
@@ -164,6 +177,20 @@ anytype auth apikey list
 # Revoke an API key
 anytype auth apikey revoke <key-id>
 ```
+
+Every key is limited to the spaces and permission you choose; there is no default. Use `anytype space list` to find space names and Ids. A key limited to specific spaces, or a read-only key, works with the JSON API v2 only; an `--all-spaces --read-write` key works with v1 and v2.
+
+#### Upgrading to the JSON API v2
+
+Keys created by earlier CLI versions keep working with the JSON API v1, but the v2 API rejects them. To move an integration to v2:
+
+1. Create a new key with the access it needs, using **the same name** as the old key. On v2, a key can only delete objects created under its name.
+2. Check that the integration works with the new key, then switch it over.
+3. Revoke the old key with `anytype auth apikey revoke <key-id>`.
+
+Keep the old key if the integration calls the gRPC API directly: new keys work only with the JSON API.
+
+After updating the CLI, restart the service (`anytype service restart`) so it runs the new version; `apikey create` refuses to create keys on an older running server. Keys created by this version don't work if you downgrade to an earlier one.
 
 ### Space Management
 

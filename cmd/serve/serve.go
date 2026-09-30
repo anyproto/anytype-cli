@@ -6,6 +6,7 @@ import (
 	"github.com/kardianos/service"
 	"github.com/spf13/cobra"
 
+	"github.com/anyproto/anytype-cli/cmd/cmdutil"
 	"github.com/anyproto/anytype-cli/core/config"
 	"github.com/anyproto/anytype-cli/core/output"
 	"github.com/anyproto/anytype-cli/core/serviceprogram"
@@ -26,7 +27,7 @@ func NewServeCmd() *cobra.Command {
 		RunE:    runServer,
 	}
 
-	cmd.Flags().StringVar(&listenAddress, "listen-address", config.DefaultAPIAddress, "API listen address in `host:port` format")
+	cmdutil.AddListenAddressFlag(cmd, &listenAddress)
 	cmd.Flags().BoolVarP(&quietMode, "quiet", "q", false, "Suppress most output (only errors)")
 	cmd.Flags().BoolVarP(&verboseMode, "verbose", "v", false, "Show detailed output (debug level)")
 	cmd.MarkFlagsMutuallyExclusive("quiet", "verbose")
@@ -50,7 +51,18 @@ func runServer(cmd *cobra.Command, args []string) error {
 		Description: "Anytype",
 	}
 
-	prg := serviceprogram.New(listenAddress)
+	apiAddr, explicit := cmdutil.APIListenAddr(cmd, listenAddress)
+
+	prg := serviceprogram.New(apiAddr)
+	if explicit {
+		// Remember the address only once this server is actually up, so a
+		// failed start (e.g. ports taken by another server) changes nothing.
+		prg.OnStarted = func() {
+			if err := config.SetApiListenAddrToConfig(apiAddr); err != nil {
+				output.Warning("Failed to remember the JSON API address: %v", err)
+			}
+		}
+	}
 
 	s, err := service.New(prg, svcConfig)
 	if err != nil {

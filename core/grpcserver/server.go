@@ -47,9 +47,7 @@ func NewServer() *Server {
 func (s *Server) Start(grpcAddr, grpcWebAddr string) error {
 	app.StartWarningAfter = time.Second * 5
 
-	if os.Getenv("ANYTYPE_LOG_LEVEL") == "" {
-		os.Setenv("ANYTYPE_LOG_LEVEL", "ERROR")
-	}
+	applyLogLevel()
 
 	metrics.Service.InitWithKeys(metrics.DefaultInHouseKey)
 
@@ -91,6 +89,7 @@ func (s *Server) Start(grpcAddr, grpcWebAddr string) error {
 	unaryInterceptors = append(unaryInterceptors, grpcprocess.ProcessInfoInterceptor(
 		"/anytype.ClientCommands/AccountLocalLinkNewChallenge",
 	))
+	unaryInterceptors = append(unaryInterceptors, originInterceptor())
 
 	s.grpcServer = grpc.NewServer(
 		grpc.MaxRecvMsgSize(20*1024*1024),
@@ -103,15 +102,12 @@ func (s *Server) Start(grpcAddr, grpcWebAddr string) error {
 		grpc_prometheus.EnableHandlingTimeHistogram()
 	}
 
-	webrpc := grpcweb.WrapServer(
-		s.grpcServer,
-		grpcweb.WithOriginFunc(func(origin string) bool { return true }),
-		grpcweb.WithWebsockets(true),
-		grpcweb.WithWebsocketOriginFunc(func(req *http.Request) bool { return true }),
-	)
+	originPolicy := newOriginPolicy(os.Getenv(envAllowedOrigins), os.Getenv(envAllowedHosts))
+	withWebsockets := websocketsEnabled()
+	webrpc := grpcweb.WrapServer(s.grpcServer, wrapOptions(originPolicy, withWebsockets)...)
 
 	s.webServer = &http.Server{
-		Handler:           webrpc,
+		Handler:           newProxyHandler(webrpc, originPolicy, withWebsockets),
 		ReadHeaderTimeout: 30 * time.Second,
 	}
 
@@ -157,4 +153,18 @@ func (s *Server) Stop() error {
 
 	log.Info("Servers stopped")
 	return nil
+}
+
+// defaultLogLevel applies when ANYTYPE_LOG_LEVEL is unset.
+const defaultLogLevel = "ERROR"
+
+// applyLogLevel applies ANYTYPE_LOG_LEVEL to heart's loggers right away.
+// heart applies it itself only when an account logs in (InitialSetParameters),
+// so without this everything logged before login uses the logger's built-in
+// DEBUG default.
+func applyLogLevel() {
+	if os.Getenv("ANYTYPE_LOG_LEVEL") == "" {
+		os.Setenv("ANYTYPE_LOG_LEVEL", defaultLogLevel)
+	}
+	logging.SetLogLevels(os.Getenv("ANYTYPE_LOG_LEVEL"))
 }
