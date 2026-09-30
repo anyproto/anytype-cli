@@ -70,6 +70,9 @@ type Program struct {
 
 	// startServer starts the gRPC servers; replaceable in tests.
 	startServer func(grpcAddr, grpcWebAddr string) error
+	// hasStoredAccount reports whether auto-login has a key to use;
+	// replaceable in tests.
+	hasStoredAccount func() bool
 }
 
 func New(apiListenAddr string) *Program {
@@ -84,6 +87,12 @@ func (p *Program) Start(s service.Service) error {
 	p.server = grpcserver.NewServer()
 	if p.startServer == nil {
 		p.startServer = p.server.Start
+	}
+	if p.hasStoredAccount == nil {
+		p.hasStoredAccount = func() bool {
+			key, _, err := core.GetStoredAccountKey()
+			return err == nil && key != ""
+		}
 	}
 
 	p.wg.Add(1)
@@ -103,8 +112,9 @@ func (p *Program) Start(s service.Service) error {
 		return fmt.Errorf("timeout waiting for server to start")
 	}
 
-	// The JSON API starts later, when an account logs in; say where it will be.
-	output.Banner("JSON API: "+config.APIURL(p.apiListenAddr), "starts when an account is logged in")
+	// The JSON API starts when an account logs in: show where it will be and,
+	// if there is nothing to auto-login with, how to log in.
+	output.Banner(startupBanner(config.APIURL(p.apiListenAddr), p.hasStoredAccount())...)
 
 	if p.OnStarted != nil {
 		p.OnStarted()
@@ -170,10 +180,33 @@ func (p *Program) attemptAutoLogin() {
 				continue
 			}
 			output.Info("Failed to auto-login with account key after %d attempts: %v", maxRetries, err)
+			output.Banner(autoLoginFailedBanner()...)
 		} else {
 			output.Success("Successfully logged in using stored account key")
-			output.Banner("JSON API listening on " + config.APIURL(p.apiListenAddr))
 			return
 		}
+	}
+}
+
+// startupBanner is shown once the server is up. With a stored account key the
+// server logs in by itself, so the address is enough; without one, the JSON
+// API won't start until someone logs in.
+func startupBanner(url string, hasStoredAccount bool) []string {
+	if hasStoredAccount {
+		return []string{"JSON API: " + url}
+	}
+	return []string{
+		"JSON API: " + url + " (starts after login)",
+		"",
+		"Not logged in. In another terminal, run one of:",
+		"  anytype auth login           # existing bot account",
+		"  anytype auth create <name>   # new bot account",
+	}
+}
+
+func autoLoginFailedBanner() []string {
+	return []string{
+		"Auto-login failed, so the JSON API is not running.",
+		"In another terminal, run: anytype auth login",
 	}
 }
