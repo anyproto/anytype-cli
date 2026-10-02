@@ -3,7 +3,38 @@ package core
 import (
 	"strings"
 	"testing"
+
+	"github.com/anyproto/anytype-heart/pb"
 )
+
+func TestNewAccountSelectRequestPrefersYamuxTransport(t *testing.T) {
+	req := newAccountSelectRequest(
+		"account-id",
+		"127.0.0.1:31012",
+		"/tmp/anytype-data",
+		pb.RpcAccount_CustomConfig,
+		"/tmp/network.yml",
+	)
+
+	if !req.PreferYamuxTransport {
+		t.Fatal("headless account selection must prefer Yamux/TCP to avoid QUIC invite timeouts")
+	}
+	if req.Id != "account-id" {
+		t.Errorf("Id = %q, want %q", req.Id, "account-id")
+	}
+	if req.JsonApiListenAddr != "127.0.0.1:31012" {
+		t.Errorf("JsonApiListenAddr = %q, want %q", req.JsonApiListenAddr, "127.0.0.1:31012")
+	}
+	if req.RootPath != "/tmp/anytype-data" {
+		t.Errorf("RootPath = %q, want %q", req.RootPath, "/tmp/anytype-data")
+	}
+	if req.NetworkMode != pb.RpcAccount_CustomConfig {
+		t.Errorf("NetworkMode = %v, want %v", req.NetworkMode, pb.RpcAccount_CustomConfig)
+	}
+	if req.NetworkCustomConfigFilePath != "/tmp/network.yml" {
+		t.Errorf("NetworkCustomConfigFilePath = %q, want %q", req.NetworkCustomConfigFilePath, "/tmp/network.yml")
+	}
+}
 
 func TestValidateAccountKey(t *testing.T) {
 	tests := []struct {
