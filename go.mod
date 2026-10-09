@@ -3,8 +3,8 @@ module github.com/anyproto/anytype-cli
 go 1.26.5
 
 require (
-	github.com/anyproto/any-sync v0.13.5
-	github.com/anyproto/anytype-heart v0.51.4
+	github.com/anyproto/any-sync v0.13.7
+	github.com/anyproto/anytype-heart v0.51.6-nightly.20261008.1.0.20261009162250-92ed13917ebb
 	github.com/cheggaaa/mb/v3 v3.0.3
 	github.com/chzyer/readline v1.5.1
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
@@ -152,7 +152,7 @@ require (
 	github.com/kovidgoyal/imaging v1.6.4 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/libp2p/go-buffer-pool v0.1.0 // indirect
-	github.com/libp2p/go-libp2p v0.49.0 // indirect
+	github.com/libp2p/go-libp2p v0.50.0 // indirect
 	github.com/libp2p/zeroconf/v2 v2.2.0 // indirect
 	github.com/lufia/plan9stats v0.0.0-20260330125221-c963978e514e // indirect
 	github.com/matishsiao/goInfo v0.0.0-20241216093258-66a9250504d6 // indirect
@@ -192,7 +192,7 @@ require (
 	github.com/prometheus/common v0.70.1 // indirect
 	github.com/prometheus/procfs v0.21.1 // indirect
 	github.com/quic-go/qpack v0.6.0 // indirect
-	github.com/quic-go/quic-go v0.62.0 // indirect
+	github.com/quic-go/quic-go v0.63.0 // indirect
 	github.com/quic-go/webtransport-go v0.13.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/rs/cors v1.11.1 // indirect
