@@ -12,6 +12,7 @@ import (
 	"github.com/anyproto/anytype-cli/core"
 	"github.com/anyproto/anytype-cli/core/config"
 	"github.com/anyproto/anytype-cli/core/grpcserver"
+	"github.com/anyproto/anytype-cli/core/localstate"
 	"github.com/anyproto/anytype-cli/core/output"
 )
 
@@ -22,11 +23,14 @@ func GetService() (service.Service, error) {
 
 // GetServiceWithAddress creates a service instance with a custom API listen address.
 func GetServiceWithAddress(apiAddr string) (service.Service, error) {
+	return getServiceWithAddressAndLogs(apiAddr, config.GetLogsDir())
+}
+
+func getServiceWithAddressAndLogs(apiAddr, logDir string) (service.Service, error) {
 	options := service.KeyValue{
 		"UserService": true,
 	}
 
-	logDir := config.GetLogsDir()
 	if logDir != "" {
 		if err := os.MkdirAll(logDir, 0755); err == nil {
 			options["LogDirectory"] = logDir
@@ -73,6 +77,10 @@ type Program struct {
 	// hasStoredAccount reports whether auto-login has a key to use;
 	// replaceable in tests.
 	hasStoredAccount func() bool
+	// accountActivity and lockInstance allow isolated auto-login lifecycle tests.
+	accountActivity  func() bool
+	lockInstance     func() (func(), error)
+	storedAccountKey func() (string, bool, error)
 }
 
 func New(apiListenAddr string) *Program {
@@ -162,7 +170,40 @@ func (p *Program) run() {
 }
 
 func (p *Program) attemptAutoLogin() {
-	accountKey, _, err := core.GetStoredAccountKey()
+	lock := p.lockInstance
+	if lock == nil {
+		lock = func() (func(), error) { return localstate.Lock(localstate.Dir()) }
+	}
+	var unlock func()
+	for {
+		var err error
+		unlock, err = lock()
+		if err == nil {
+			break
+		}
+		select {
+		case <-p.ctx.Done():
+			return
+		case <-time.After(200 * time.Millisecond):
+		}
+	}
+	defer unlock()
+	active := p.accountActivity
+	if active == nil {
+		active = p.server.AccountActivity
+	}
+	// Check after taking the shared lock: provisioning may have completed while
+	// this delayed auto-login was waiting for it.
+	if active() {
+		output.Info("Account operation already observed, skipping auto-login")
+		return
+	}
+
+	readKey := p.storedAccountKey
+	if readKey == nil {
+		readKey = core.GetStoredAccountKey
+	}
+	accountKey, _, err := readKey()
 	if err != nil || accountKey == "" {
 		output.Info("No stored account key found, skipping auto-login")
 		return
