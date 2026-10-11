@@ -1,0 +1,23 @@
+services:
+  anytype-cli:
+    # Example spaces api call from n8n: CURL GET http://anytype-cli:31012/v1/spaces
+    build:
+      context: https://github.com/anyproto/anytype-cli.git
+      dockerfile: Dockerfile
+    container_name: anytype-cli
+    command: ["serve", "--listen-address", "0.0.0.0:31012"]
+    restart: unless-stopped
+    volumes:
+      - anytype_data:/root/.anytype
+      - anytype_config:/root/.config/anytype
+    networks:
+      - anytype_api
+
+volumes:
+  anytype_data:
+  anytype_config:
+
+networks:
+  anytype_api:
+    external: true
+    
