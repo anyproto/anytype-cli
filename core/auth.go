@@ -24,6 +24,19 @@ func determineNetworkMode(networkConfigPath string) pb.RpcAccountNetworkMode {
 	return pb.RpcAccount_DefaultConfig
 }
 
+func newAccountSelectRequest(accountId, apiAddr, rootPath string, networkMode pb.RpcAccountNetworkMode, networkConfigPath string) *pb.RpcAccountSelectRequest {
+	return &pb.RpcAccountSelectRequest{
+		Id:                          accountId,
+		JsonApiListenAddr:           apiAddr,
+		RootPath:                    rootPath,
+		NetworkMode:                 networkMode,
+		NetworkCustomConfigFilePath: networkConfigPath,
+		// Headless deployments can run on networks where QUIC is unavailable
+		// or unreliable. anytype-heart provides Yamux/TCP for this case.
+		PreferYamuxTransport: true,
+	}
+}
+
 // Authenticate performs the full authentication flow for a bot account using an account key.
 // This includes wallet recovery, session creation, account recovery, account selection, and config persistence.
 // If networkConfigPath is provided, connects to that custom network.
@@ -113,13 +126,7 @@ func Authenticate(accountKey, rootPath, apiAddr, networkConfigPath string) error
 
 	var techSpaceId string
 	err = GRPCCall(func(ctx context.Context, client service.ClientCommandsClient) error {
-		resp, err := client.AccountSelect(ctx, &pb.RpcAccountSelectRequest{
-			Id:                          accountId,
-			JsonApiListenAddr:           apiAddr,
-			RootPath:                    rootPath,
-			NetworkMode:                 networkMode,
-			NetworkCustomConfigFilePath: networkConfigPath,
-		})
+		resp, err := client.AccountSelect(ctx, newAccountSelectRequest(accountId, apiAddr, rootPath, networkMode, networkConfigPath))
 		if err != nil {
 			return fmt.Errorf("failed to select account: %w", err)
 		}
