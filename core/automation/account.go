@@ -120,7 +120,7 @@ func (e *Engine) authMutation(ctx context.Context, r Request, op *operation, ret
 	}
 	op.Settings = settings
 	// Installation arguments and account selection must agree about the listener.
-	svc, err := e.Service.Status(ctx)
+	svc, err := e.runtimeServiceStatus(ctx)
 	if err != nil {
 		return fail(err)
 	}

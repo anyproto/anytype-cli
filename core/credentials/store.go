@@ -60,11 +60,12 @@ func (s *Store) Get(name string) (string, string, error) {
 		return "", "", err
 	}
 	var v string
+	var keyringErr error
 	if selected != "private_file" {
 		var err error
 		v, err = s.GetKeyring("anytype-cli", name)
 		if err != nil && !errors.Is(err, keyring.ErrNotFound) && !errors.Is(err, os.ErrNotExist) {
-			return "", "system_keyring", err
+			keyringErr = err
 		}
 		if err == nil && v != "" {
 			return v, "system_keyring", nil
@@ -84,6 +85,12 @@ func (s *Store) Get(name string) (string, string, error) {
 		} else if !errors.Is(err, os.ErrNotExist) {
 			return "", "legacy_config_file", err
 		}
+	}
+	// Existing headless installs stored credentials in config when the keyring
+	// was unavailable. Read those without migration, but never treat an
+	// unreadable keyring with no legacy credential as an empty instance.
+	if keyringErr != nil {
+		return "", "system_keyring", keyringErr
 	}
 	return "", "", os.ErrNotExist
 }

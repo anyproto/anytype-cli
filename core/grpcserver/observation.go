@@ -32,7 +32,7 @@ func observationInterceptor(r *runtimeinfo.Recorder) grpc.UnaryServerInterceptor
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		method := path.Base(info.FullMethod)
 		switch method {
-		case "WalletCreate", "WalletRecover", "AccountCreate", "AccountSelect", "AccountStop", "AppShutdown", "AccountChangeJsonApiAddr":
+		case "WalletCreate", "WalletRecover", "AccountCreate", "AccountSelect", "AccountStop", "AppShutdown", "AccountChangeJsonApiAddr", "AccountMove", "AccountChangeNetworkConfigAndRestart":
 		default:
 			resp, err := handler(ctx, req)
 			if method == "AppGetVersion" {
@@ -48,7 +48,7 @@ func observationInterceptor(r *runtimeinfo.Recorder) grpc.UnaryServerInterceptor
 				r.Transition()
 			case "AccountCreate":
 				r.AccountSelection("")
-			case "AccountStop", "AppShutdown":
+			case "AccountStop", "AppShutdown", "AccountMove", "AccountChangeNetworkConfigAndRestart":
 				r.Stopping()
 			}
 			switch v := req.(type) {
@@ -116,6 +116,11 @@ func observeResponse(r *runtimeinfo.Recorder, method string, req, resp any, err 
 				r.Stopped()
 				stopObserved = true
 			}
+		case *pb.RpcAccountMoveResponse:
+			if v != nil && v.GetError().GetCode() == pb.RpcAccountMoveResponseError_NULL {
+				r.Stopped()
+				stopObserved = true
+			}
 		case *pb.RpcAccountChangeJsonApiAddrResponse:
 			if v != nil && v.GetError().GetCode() == pb.RpcAccountChangeJsonApiAddrResponseError_NULL && v.Status != nil {
 				r.API(v.Status.ListenAddr, v.Status.Success)
@@ -131,10 +136,13 @@ func observeResponse(r *runtimeinfo.Recorder, method string, req, resp any, err 
 	if method == "AccountChangeJsonApiAddr" && !apiOutcomeObserved {
 		r.APIChangeUncertain()
 	}
-	if (method == "AccountStop" || method == "AppShutdown") && !stopObserved {
+	if (method == "AccountStop" || method == "AppShutdown" || method == "AccountMove") && !stopObserved {
 		r.StopUncertain()
 	}
-	if (method == "AccountCreate" || method == "AccountSelect") && !accountObserved {
+	// Network restart returns neither an account nor an authoritative API bind
+	// result. Even success cannot prove listener continuity. A later selection
+	// can establish account identity; an explicit rebind establishes the API.
+	if (method == "AccountCreate" || method == "AccountSelect" || method == "AccountChangeNetworkConfigAndRestart") && !accountObserved {
 		r.AccountStartUncertain()
 	}
 }

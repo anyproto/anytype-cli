@@ -161,16 +161,52 @@ func TestKeyringMarkerRoundTrip(t *testing.T) {
 	}
 }
 func TestReadsLegacyConfigWithoutMutation(t *testing.T) {
-	s := storeFixture(t)
-	if err := localstate.WriteJSON(s.ConfigPath, map[string]string{"accountKey": "legacy-fixture"}); err != nil {
-		t.Fatal(err)
+	for _, keyringErr := range []error{os.ErrNotExist, os.ErrPermission, errors.New("D-Bus unavailable")} {
+		s := storeFixture(t)
+		s.GetKeyring = func(string, string) (string, error) { return "", keyringErr }
+		if err := localstate.WriteJSON(s.ConfigPath, map[string]string{"accountKey": "legacy-key", "sessionToken": "legacy-token"}); err != nil {
+			t.Fatal(err)
+		}
+		for name, want := range map[string]string{"account-key": "legacy-key", "session-token": "legacy-token"} {
+			value, backend, err := s.Get(name)
+			if err != nil || value != want || backend != "legacy_config_file" {
+				t.Fatal(name, backend, err)
+			}
+		}
+		if _, err := os.Stat(s.Dir); !errors.Is(err, os.ErrNotExist) {
+			t.Fatal("inspection migrated storage")
+		}
+		if _, _, err := s.Get("unmarked-api-key"); !errors.Is(err, keyringErr) {
+			t.Fatal("legacy credentials masked unrelated keyring failure", err)
+		}
 	}
-	value, backend, err := s.Get("account-key")
-	if err != nil || value != "legacy-fixture" || backend != "legacy_config_file" {
-		t.Fatal(backend, err)
-	}
-	if _, err := os.Stat(s.Dir); !errors.Is(err, os.ErrNotExist) {
-		t.Fatal("inspection migrated storage")
+}
+
+func TestLegacyCredentialsCannotOverrideMarkers(t *testing.T) {
+	for _, kind := range []string{"keyring", "private", "tombstone"} {
+		s := storeFixture(t)
+		if err := localstate.WriteJSON(s.ConfigPath, map[string]string{"accountKey": "stale-legacy-key"}); err != nil {
+			t.Fatal(err)
+		}
+		marker := storedValue{Secret: "current-key", Backend: "private_file"}
+		switch kind {
+		case "keyring":
+			marker = storedValue{Backend: "system_keyring"}
+		case "tombstone":
+			marker.Secret = ""
+		}
+		if err := localstate.WriteJSON(s.file("account-key"), marker); err != nil {
+			t.Fatal(err)
+		}
+		s.GetKeyring = func(string, string) (string, error) { return "", os.ErrPermission }
+		value, backend, err := s.Get("account-key")
+		if kind == "keyring" {
+			if !errors.Is(err, os.ErrPermission) || value != "" || backend != "system_keyring" {
+				t.Fatal("legacy value bypassed keyring marker", backend, err)
+			}
+		} else if err != nil || value != marker.Secret || backend != "private_file" {
+			t.Fatal("legacy value bypassed file marker", kind, backend, err)
+		}
 	}
 }
 func TestDeleteRemovesReachableKeyringAndLegacySecret(t *testing.T) {

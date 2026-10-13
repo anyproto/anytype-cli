@@ -36,6 +36,19 @@ func runProcess(ctx context.Context, name string, args ...string) ([]byte, error
 	defer cancel()
 	return exec.CommandContext(ctx, name, args...).Output()
 }
+
+// A verified foreground runtime does not require an OS service adapter.
+// Keep every other inspection error (including unavailable supported managers)
+// so this cannot bypass an installed service's binding checks.
+func (e *Engine) runtimeServiceStatus(ctx context.Context) (ServiceStatus, error) {
+	s, err := e.Service.Status(ctx)
+	var detail *Error
+	if s.Manager == "unsupported" && errors.As(err, &detail) && detail.Code == "unsupported_service_platform" {
+		return s, nil
+	}
+	return s, err
+}
+
 func (n *NativeService) Status(ctx context.Context) (ServiceStatus, error) {
 	s := ServiceStatus{Name: "anytype", Health: "not_running"}
 	switch n.Platform {

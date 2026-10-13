@@ -96,3 +96,85 @@ func TestAccountCreateNeverRetainsPriorAccountBinding(t *testing.T) {
 		}
 	}
 }
+
+func TestNativeMoveAndNetworkRestartInvalidateBinding(t *testing.T) {
+	for _, method := range []string{"AccountMove", "AccountChangeNetworkConfigAndRestart"} {
+		for _, outcome := range []string{"success", "protobuf_error", "transport_error"} {
+			t.Run(method+"/"+outcome, func(t *testing.T) {
+				f := newObservationFixture(t)
+				f.r.Account(&model.Account{Id: "account-a"})
+				f.rebind("127.0.0.1:4500", bindResponse("127.0.0.1:4500", true), nil)
+				var request any = &pb.RpcAccountMoveRequest{NewPath: "/fixture/new-data"}
+				var response any = &pb.RpcAccountMoveResponse{}
+				if method == "AccountChangeNetworkConfigAndRestart" {
+					request = &pb.RpcAccountChangeNetworkConfigAndRestartRequest{}
+					response = &pb.RpcAccountChangeNetworkConfigAndRestartResponse{}
+				}
+				_, _ = f.interceptor(context.Background(), request, &grpc.UnaryServerInfo{FullMethod: "/anytype.ClientCommands/" + method}, func(context.Context, any) (any, error) {
+					if s := f.snapshot(); s.APIBound || !s.AccountTransition {
+						t.Fatal("pre-close binding survived handler entry", s)
+					}
+					// Heart may close the old app before an error. A successful
+					// network restart does not imply a successful HTTP bind.
+					f.event("127.0.0.1:4500", false)
+					if outcome == "transport_error" {
+						return nil, errors.New("native result lost")
+					}
+					if outcome == "protobuf_error" {
+						if method == "AccountMove" {
+							return &pb.RpcAccountMoveResponse{Error: &pb.RpcAccountMoveResponseError{Code: pb.RpcAccountMoveResponseError_UNKNOWN_ERROR}}, nil
+						}
+						return &pb.RpcAccountChangeNetworkConfigAndRestartResponse{Error: &pb.RpcAccountChangeNetworkConfigAndRestartResponseError{Code: pb.RpcAccountChangeNetworkConfigAndRestartResponseError_UNKNOWN_ERROR}}, nil
+					}
+					return response, nil
+				})
+				f.event("127.0.0.1:4500", true)
+				s := f.snapshot()
+				if s.APIBound || s.APIAddress != "" {
+					t.Fatal("closed binding revived by delayed event", s)
+				}
+				if method == "AccountMove" && outcome == "success" {
+					if s.AccountId != "" || s.AccountTransition || s.APIObservation != "stopped" {
+						t.Fatal("successful move did not observe stopped app", s)
+					}
+				} else if !s.AccountTransition {
+					t.Fatal("unverified account lifecycle presented as ready", s)
+				}
+				f.selectAccount("127.0.0.1:4500", func() { f.event("127.0.0.1:4500", false) })
+				if s = f.snapshot(); s.APIBound || s.AccountTransition {
+					t.Fatal("selection revived pre-close evidence", s)
+				}
+				f.rebind("127.0.0.1:4500", bindResponse("127.0.0.1:4500", true), nil)
+				if s = f.snapshot(); !s.APIBound || s.AccountTransition {
+					t.Fatal("explicit selection and rebind did not recover", s)
+				}
+			})
+		}
+	}
+}
+
+func TestNativeMoveAndRestartParticipateInOverlapTracking(t *testing.T) {
+	for _, method := range []string{"AccountMove", "AccountChangeNetworkConfigAndRestart"} {
+		t.Run(method, func(t *testing.T) {
+			f := newObservationFixture(t)
+			f.r.Account(&model.Account{Id: "account-a"})
+			entered, release, finished := make(chan struct{}), make(chan struct{}), make(chan struct{})
+			go func() {
+				defer close(finished)
+				_, _ = f.interceptor(context.Background(), nil, &grpc.UnaryServerInfo{FullMethod: "/anytype.ClientCommands/" + method}, func(context.Context, any) (any, error) {
+					close(entered)
+					<-release
+					return nil, errors.New("native result lost")
+				})
+			}()
+			<-entered
+			f.rebind("127.0.0.1:4500", bindResponse("127.0.0.1:4500", true), nil)
+			close(release)
+			<-finished
+			f.event("127.0.0.1:4500", true)
+			if s := f.snapshot(); s.APIBound || !s.AccountTransition || s.APIObservation != "concurrent_lifecycle" {
+				t.Fatal("overlapping response invented lifecycle order", s)
+			}
+		})
+	}
+}

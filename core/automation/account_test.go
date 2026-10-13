@@ -11,6 +11,36 @@ import (
 	"github.com/anyproto/anytype-cli/core/runtimeinfo"
 )
 
+func TestWindowsForegroundAccountAutomation(t *testing.T) {
+	for _, command := range []string{"auth create", "auth login"} {
+		t.Run(command, func(t *testing.T) {
+			e, rpc, _ := fixture(t, false)
+			e.Service = &NativeService{Platform: "windows"}
+			r := createRequest()
+			if command == "auth login" {
+				r = Request{Command: command, OperationId: "login-windows", ExpectedAccount: "account-a", Secret: "account-private-fixture"}
+			}
+			if out := run(e, r); out.ExitCode() != 0 || rpc.createCalls+rpc.selectCalls != 1 {
+				t.Fatal("foreground account operation failed", out)
+			}
+			for _, inspect := range []string{"inspect", "auth status", "service status"} {
+				out := run(e, Request{Command: inspect, ExpectedAccount: "account-a"})
+				if out.ExitCode() != 0 {
+					t.Fatal("foreground inspection failed", out)
+				}
+				result := out.Result.(map[string]any)
+				if !result["account"].(Account).Authenticated || result["service"].(ServiceStatus).Manager != "unsupported" {
+					t.Fatal("inspection hid service adapter limitation", out)
+				}
+			}
+			assertCode(t, run(e, Request{Command: "auth status", ExpectedAccount: "another-account"}), "account_mismatch")
+			for _, mutation := range []Request{{Command: "service install", OperationId: "windows-install"}, {Command: "service start", OperationId: "windows-start"}} {
+				assertCode(t, run(e, mutation), "unsupported_service_platform")
+			}
+		})
+	}
+}
+
 func TestUnreadableSavedKeyBlocksAccountProvisioning(t *testing.T) {
 	for _, command := range []string{"auth create", "auth login"} {
 		e, rpc, _ := fixture(t, false)

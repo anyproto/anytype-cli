@@ -14,6 +14,10 @@ in this first version. Arbitrary service environments, systemd drop-ins, custom
 service definitions, and `DATA_PATH` service provisioning are not adopted.
 Ordinary Windows CLI/service operation remains supported; the machine service
 adapter limitation does not disable its runtime observation or credential store.
+Windows JSON account create/login and inspection can use a nonce-verified
+foreground `serve`; inspection reports `service.manager:unsupported` without
+claiming a verified service definition. Machine service install/start still
+return `unsupported_service_platform`.
 
 ## Envelope and exits
 
@@ -106,6 +110,12 @@ A failed or incomplete create/select response discards continuity and closes
 its startup-event window, reporting `account_start_outcome_unknown`; inspection
 directs the caller to resume the account operation or explicitly restart the
 native service. A new account never inherits the previous account's binding.
+Native `AccountMove` and `AccountChangeNetworkConfigAndRestart` also invalidate
+binding continuity before entering Heart and participate in overlap tracking.
+A successful move observes a stopped account. Network restart has no account or
+API status in its response, so it leaves `account_start_outcome_unknown` even on
+success; a later account selection establishes identity, and an explicit API
+rebind (or native service restart) establishes binding again.
 Delayed service auto-login skips any account activity already observed under the
 shared instance lock, including an unresolved transition.
 
@@ -302,6 +312,11 @@ markers remain file-backed. Legacy config credentials still participate in
 identity guards. Invalid selector values fail closed. Capabilities advertise
 the selector, and account results report the actual credential backend.
 On POSIX, files use mode 0600, file sync and directory sync after rename. On
+macOS, opened-file ACLs are also checked: deny-only ACLs are accepted, granting
+ACL entries are conservatively rejected. This applies to private stdin/stdout
+and stored secrets. Inherited grants reject a temporary file before private
+data is written; use a pipe or a private directory without granting ACLs.
+macOS ACL checks require the CLI's normal cgo build. On
 Windows, files are created with a protected ACL allowing only the current user
 and LocalSystem, checked through the opened file's owner/DACL, flushed, and
 replaced with `MoveFileEx` write-through. Windows' synthetic POSIX mode bits and
@@ -311,6 +326,9 @@ runtime acceptance still needs a Windows host.
 Read-only inspection never tests keyring availability by writing an entry, creates
 no directory, and does not migrate legacy storage. Legacy config credentials are
 read compatibly. Human CLI and service auto-login share this credential store.
+An unmarked legacy config credential remains readable when the keyring is
+unavailable. Without a legacy value, that keyring error remains an error rather
+than evidence of an empty instance. Existing markers and tombstones always win.
 Logout commits tombstones, attempts physical deletion of owned keyring entries, and removes legacy
 config credentials. Completed operation recovery receipts are retained separately
 for explicit private recovery; logout does not erase those recovery receipts.
