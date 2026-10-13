@@ -78,6 +78,9 @@ Re-create your account with `--network-config` pointing to the correct YAML file
 **`DeadlineExceeded`**
 Check network connectivity to your self-hosted nodes.
 
+**Slow sync when only TCP ports are reachable**
+If your nodes' QUIC (UDP) ports are blocked or not forwarded, every connection waits for QUIC to fail before falling back to TCP. Connect over TCP first with `anytype config set prefer-tcp true`, then `anytype service restart` (see [Settings](README.md#settings)).
+
 **`no ns peers configured`** / **`membership status`**
 These warnings are expected on self-hosted networks (naming service and membership are only available on the Anytype Network).
 

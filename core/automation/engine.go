@@ -206,6 +206,7 @@ func (e *Engine) inspect(ctx context.Context, r Request) Envelope {
 	}
 	svc, svcErr := e.runtimeServiceStatus(ctx)
 	result := map[string]any{"cli_version": core.GetVersion(), "instance": map[string]any{"id": "default", "config_path": e.ConfigPath, "data_path": e.DataPath, "work_path": e.WorkPath, "grpc_address": config.DefaultGRPCAddress, "grpc_web_address": config.DefaultGRPCWebAddress, "isolated": false}, "service": svc, "capabilities": capabilities(), "account": Account{Id: c.AccountId, Observation: "configured"}, "network": map[string]any{"id": c.NetworkId, "config_path": c.NetworkConfigPath, "observation": "configured"}, "api": map[string]any{"configured_origin": apiOrigin(config.ResolveAPIListenAddr("", false, c.ApiListenAddr)), "ready": false, "observation": "configured"}}
+	result["transport"] = transportJSON(c.Settings)
 	s, err := e.live(ctx)
 	if err != nil {
 		out := Failure(err)

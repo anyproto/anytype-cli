@@ -63,6 +63,7 @@ type fakeRPC struct {
 	badGrant                                                                bool
 	afterKey                                                                func()
 	afterCreate                                                             func()
+	preferTcp                                                               []bool
 }
 
 func (f *fakeRPC) InitialSetParameters(context.Context, *pb.RpcInitialSetParametersRequest, ...grpc.CallOption) (*pb.RpcInitialSetParametersResponse, error) {
@@ -109,6 +110,7 @@ func (f *fakeRPC) AccountCreate(_ context.Context, r *pb.RpcAccountCreateRequest
 		panic("AccountCreate before recovery key persisted")
 	}
 	f.names = r.Name
+	f.preferTcp = append(f.preferTcp, r.PreferYamuxTransport)
 	f.settings(r.NetworkCustomConfigFilePath, r.JsonApiListenAddr)
 	a := f.account()
 	if f.afterCreate != nil {
@@ -118,6 +120,7 @@ func (f *fakeRPC) AccountCreate(_ context.Context, r *pb.RpcAccountCreateRequest
 }
 func (f *fakeRPC) AccountSelect(_ context.Context, r *pb.RpcAccountSelectRequest, _ ...grpc.CallOption) (*pb.RpcAccountSelectResponse, error) {
 	f.selectCalls++
+	f.preferTcp = append(f.preferTcp, r.PreferYamuxTransport)
 	f.settings(r.NetworkCustomConfigFilePath, r.JsonApiListenAddr)
 	return &pb.RpcAccountSelectResponse{Account: f.account()}, nil
 }

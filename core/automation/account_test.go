@@ -1,11 +1,13 @@
 package automation
 
 import (
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/anyproto/anytype-cli/core/config"
 	"github.com/anyproto/anytype-cli/core/credentials"
 	"github.com/anyproto/anytype-cli/core/localstate"
 	"github.com/anyproto/anytype-cli/core/runtimeinfo"
@@ -229,5 +231,107 @@ func TestWildcardListenerAliasPreservesAccountSettingsOnReplay(t *testing.T) {
 		if result["api"].(map[string]any)["origin"] != "http://127.0.0.1:4500" || result["mcp"].(map[string]any)["url"] != "http://127.0.0.1:4500/mcp/full" {
 			t.Fatal("wildcard exposed unusable client origin", out)
 		}
+	}
+}
+
+func TestAccountStartSendsTransportPreference(t *testing.T) {
+	tests := []struct {
+		name  string
+		env   string
+		saved bool
+		want  bool
+	}{
+		{"default", "", false, false},
+		{"saved", "", true, true},
+		{"env on", "true", false, true},
+		{"env off overrides saved", "false", true, false},
+	}
+	for _, command := range []string{"auth create", "auth login"} {
+		for _, tt := range tests {
+			t.Run(command+"/"+tt.name, func(t *testing.T) {
+				t.Setenv(config.PreferTcpEnv, tt.env)
+				e, rpc, _ := fixture(t, false)
+				if tt.saved {
+					if err := localstate.WriteJSON(e.ConfigPath, config.Config{Settings: config.Settings{PreferTcp: true}}); err != nil {
+						t.Fatal(err)
+					}
+				}
+				r := createRequest()
+				if command == "auth login" {
+					r = Request{Command: "auth login", OperationId: "login-0001", ExpectedAccount: "none", Secret: "account-private-fixture"}
+				}
+				if out := run(e, r); out.ExitCode() != 0 {
+					t.Fatalf("%s: %+v", command, out)
+				}
+				if len(rpc.preferTcp) == 0 {
+					t.Fatal("no account start was sent")
+				}
+				for _, got := range rpc.preferTcp {
+					if got != tt.want {
+						t.Errorf("PreferYamuxTransport = %v, want %v", got, tt.want)
+					}
+				}
+			})
+		}
+	}
+}
+
+func TestInvalidTransportOverrideStopsBeforeRPC(t *testing.T) {
+	t.Setenv(config.PreferTcpEnv, "maybe")
+	e, rpc, _ := fixture(t, false)
+	r := Request{Command: "auth login", OperationId: "login-0001", ExpectedAccount: "none", Secret: "account-private-fixture"}
+	assertCode(t, run(e, r), "invalid_environment")
+	if rpc.initialCalls != 0 || rpc.recoverCalls != 0 || rpc.selectCalls != 0 {
+		t.Fatal("sent RPCs despite an invalid transport override")
+	}
+}
+
+func TestInspectionReportsTransportPreference(t *testing.T) {
+	tests := []struct {
+		name       string
+		env        string
+		saved      bool
+		want       bool
+		wantSource string
+		wantAction bool
+	}{
+		{"default", "", false, false, "default", false},
+		{"saved", "", true, true, "config", false},
+		{"env", "true", false, true, "env", false},
+		{"invalid env", "maybe", true, true, "config", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv(config.PreferTcpEnv, tt.env)
+			e, _, _ := fixture(t, false)
+			if tt.saved {
+				if err := localstate.WriteJSON(e.ConfigPath, config.Config{Settings: config.Settings{PreferTcp: true}}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			out := run(e, Request{Command: "inspect"})
+			if out.ExitCode() != 0 {
+				t.Fatal(out)
+			}
+			b, err := json.Marshal(out.Result)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var result struct {
+				Transport struct {
+					PreferTcp   bool   `json:"prefer_tcp"`
+					Source      string `json:"source"`
+					Observation string `json:"observation"`
+					NextAction  string `json:"next_action"`
+				} `json:"transport"`
+			}
+			if err := json.Unmarshal(b, &result); err != nil {
+				t.Fatal(err)
+			}
+			got := result.Transport
+			if got.PreferTcp != tt.want || got.Source != tt.wantSource || got.Observation != "configured" || (got.NextAction != "") != tt.wantAction {
+				t.Errorf("transport = %+v, want prefer_tcp %v from %s (next_action %v)", got, tt.want, tt.wantSource, tt.wantAction)
+			}
+		})
 	}
 }

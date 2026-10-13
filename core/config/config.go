@@ -17,9 +17,17 @@ type Config struct {
 	// WARNING: This is insecure and should only be used on headless servers
 	AccountKey   string `json:"accountKey,omitempty"`
 	SessionToken string `json:"sessionToken,omitempty"`
+	// Settings are embedded so their keys stay at the top level of the file.
+	Settings
+}
+
+// Settings are the user's choices about how this instance runs. Unlike the
+// account fields in Config, they survive logout.
+type Settings struct {
 	// ApiListenAddr is the JSON API address last chosen with --listen-address.
-	// It is a server setting, so it survives logout.
 	ApiListenAddr string `json:"apiListenAddr,omitempty"`
+	// PreferTcp makes the account dial peers over TCP before QUIC.
+	PreferTcp bool `json:"preferTcp,omitempty"`
 }
 
 var (
@@ -55,14 +63,19 @@ func (cm *ConfigManager) Load() error {
 	if err != nil {
 		if os.IsNotExist(err) {
 			// Config doesn't exist yet, that's okay
+			cm.config = &Config{}
 			return nil
 		}
 		return fmt.Errorf("failed to read config file: %w", err)
 	}
 
-	if err := json.Unmarshal(data, cm.config); err != nil {
+	// Decode into a fresh value: keys another process removed must not
+	// survive from an earlier load.
+	loaded := &Config{}
+	if err := json.Unmarshal(data, loaded); err != nil {
 		return fmt.Errorf("failed to parse config file: %w", err)
 	}
+	cm.config = loaded
 
 	return nil
 }
@@ -163,28 +176,35 @@ func (cm *ConfigManager) SetApiListenAddr(addr string) error {
 	return cm.Save()
 }
 
-// ClearAccount removes everything tied to the logged-in account and keeps
-// server settings. The file is deleted when no settings remain.
-func (cm *ConfigManager) ClearAccount() error {
+// UpdateSettings applies fn to a copy of the settings and saves the result.
+// Nothing changes when fn returns an error.
+func (cm *ConfigManager) UpdateSettings(fn func(*Settings) error) error {
 	cm.mu.Lock()
-	keep := &Config{ApiListenAddr: cm.config.ApiListenAddr}
+	settings := cm.config.Settings
+	if err := fn(&settings); err != nil {
+		cm.mu.Unlock()
+		return err
+	}
+	cm.config.Settings = settings
 	cm.mu.Unlock()
 
-	if keep.ApiListenAddr == "" {
+	return cm.Save()
+}
+
+// ClearAccount removes everything tied to the logged-in account and keeps
+// settings. The file is deleted when no settings remain.
+func (cm *ConfigManager) ClearAccount() error {
+	cm.mu.Lock()
+	keep := &Config{Settings: cm.config.Settings}
+	cm.mu.Unlock()
+
+	if keep.Settings == (Settings{}) {
 		return cm.Delete()
 	}
 
 	cm.mu.Lock()
 	cm.config = keep
 	cm.mu.Unlock()
-	return cm.Save()
-}
-
-func (cm *ConfigManager) Reset() error {
-	cm.mu.Lock()
-	cm.config = &Config{}
-	cm.mu.Unlock()
-
 	return cm.Save()
 }
 
