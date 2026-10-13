@@ -2,9 +2,11 @@ package core
 
 import (
 	"errors"
+	"os"
 
 	"github.com/anyproto/anytype-cli/core/config"
-	"github.com/zalando/go-keyring"
+	"github.com/anyproto/anytype-cli/core/credentials"
+	"github.com/anyproto/anytype-cli/core/localstate"
 )
 
 const (
@@ -16,107 +18,33 @@ const (
 var (
 	keyringUnavailable = false
 	ErrNotFound        = errors.New("credentials not found")
+	credentialPaths    = func() (string, string) { return localstate.Dir(), config.GetConfigFilePath() }
 )
 
-// isKeyringAvailable checks if the keyring is accessible
-func isKeyringAvailable() bool {
+func credentialStore() *credentials.Store {
+	dir, path := credentialPaths()
+	s := credentials.New(dir, path)
 	if keyringUnavailable {
-		return false
+		s.GetKeyring = func(string, string) (string, error) { return "", os.ErrNotExist }
+		s.SetKeyring = func(string, string, string) error { return os.ErrPermission }
+		s.DeleteKeyring = func(string, string) error { return os.ErrPermission }
 	}
-
-	err := keyring.Set(keyringService, "test", "test")
-	if err != nil {
-		keyringUnavailable = true
-		return false
-	}
-	_ = keyring.Delete(keyringService, "test")
-	return true
+	return s
 }
-
-// SaveSessionToken saves the session token to the keyring if available, otherwise to the config file.
-// Returns true if saved to keyring, false if saved to config file.
-func SaveSessionToken(token string) (bool, error) {
-	if isKeyringAvailable() {
-		return true, keyring.Set(keyringService, keyringTokenUser, token)
-	}
-
-	return false, config.SetSessionTokenToConfig(token)
+func saveCredential(name, value string) (bool, error) {
+	storage, err := credentialStore().Set(name, value)
+	return storage == "system_keyring", err
 }
-
-// GetStoredSessionToken retrieves the session token from keyring if available, otherwise from config file.
-// Returns the token, true if retrieved from keyring (false if from config file), and any error.
-func GetStoredSessionToken() (string, bool, error) {
-	if isKeyringAvailable() {
-		token, err := keyring.Get(keyringService, keyringTokenUser)
-		if err == nil {
-			return token, true, nil
-		}
-		if !errors.Is(err, keyring.ErrNotFound) {
-			keyringUnavailable = true
-		}
-	}
-
-	token, _ := config.GetSessionTokenFromConfig()
-	if token == "" {
+func getCredential(name string) (string, bool, error) {
+	value, storage, err := credentialStore().Get(name)
+	if errors.Is(err, os.ErrNotExist) || err == nil && value == "" {
 		return "", false, ErrNotFound
 	}
-	return token, false, nil
+	return value, storage == "system_keyring", err
 }
-
-func DeleteStoredSessionToken() error {
-	var keyringErr error
-	if isKeyringAvailable() {
-		keyringErr = keyring.Delete(keyringService, keyringTokenUser)
-	}
-
-	configErr := config.SetSessionTokenToConfig("")
-
-	if keyringErr != nil && configErr != nil {
-		return configErr
-	}
-	return nil
-}
-
-// SaveAccountKey saves the account key to the keyring if available, otherwise to the config file.
-// Returns true if saved to keyring, false if saved to config file.
-func SaveAccountKey(accountKey string) (bool, error) {
-	if isKeyringAvailable() {
-		return true, keyring.Set(keyringService, keyringAccountKeyUser, accountKey)
-	}
-
-	return false, config.SetAccountKeyToConfig(accountKey)
-}
-
-// GetStoredAccountKey retrieves the account key from keyring if available, otherwise from config file.
-// Returns the account key, true if retrieved from keyring (false if from config file), and any error.
-func GetStoredAccountKey() (string, bool, error) {
-	if isKeyringAvailable() {
-		key, err := keyring.Get(keyringService, keyringAccountKeyUser)
-		if err == nil {
-			return key, true, nil
-		}
-		if !errors.Is(err, keyring.ErrNotFound) {
-			keyringUnavailable = true
-		}
-	}
-
-	key, _ := config.GetAccountKeyFromConfig()
-	if key == "" {
-		return "", false, ErrNotFound
-	}
-	return key, false, nil
-}
-
-func DeleteStoredAccountKey() error {
-	var keyringErr error
-	if isKeyringAvailable() {
-		keyringErr = keyring.Delete(keyringService, keyringAccountKeyUser)
-	}
-
-	configErr := config.SetAccountKeyToConfig("")
-
-	if keyringErr != nil && configErr != nil {
-		return configErr
-	}
-	return nil
-}
+func SaveSessionToken(token string) (bool, error)  { return saveCredential(keyringTokenUser, token) }
+func SaveAccountKey(key string) (bool, error)      { return saveCredential(keyringAccountKeyUser, key) }
+func GetStoredSessionToken() (string, bool, error) { return getCredential(keyringTokenUser) }
+func GetStoredAccountKey() (string, bool, error)   { return getCredential(keyringAccountKeyUser) }
+func DeleteStoredSessionToken() error              { return credentialStore().Delete(keyringTokenUser) }
+func DeleteStoredAccountKey() error                { return credentialStore().Delete(keyringAccountKeyUser) }

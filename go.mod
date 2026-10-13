@@ -3,10 +3,12 @@ module github.com/anyproto/anytype-cli
 go 1.26.5
 
 require (
-	github.com/anyproto/any-sync v0.13.5
-	github.com/anyproto/anytype-heart v0.51.4
+	github.com/anyproto/any-sync v0.13.8
+	github.com/anyproto/anytype-heart v0.51.6
 	github.com/cheggaaa/mb/v3 v3.0.3
 	github.com/chzyer/readline v1.5.1
+	github.com/gofrs/flock v0.13.0
+	github.com/gogo/protobuf v1.3.2
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
 	github.com/improbable-eng/grpc-web v0.15.0
@@ -15,6 +17,7 @@ require (
 	github.com/spf13/pflag v1.0.10
 	github.com/zalando/go-keyring v0.2.8
 	golang.org/x/mod v0.41.0
+	golang.org/x/sys v0.48.0
 	google.golang.org/grpc v1.83.1
 	gopkg.in/yaml.v3 v3.0.1
 )
@@ -27,7 +30,7 @@ require (
 	github.com/alexbrainman/goissue34681 v0.0.0-20191006012335-3fc7a47baff5 // indirect
 	github.com/andybalholm/cascadia v1.3.3 // indirect
 	github.com/anyproto/any-block v0.0.0-20260919082013-9906a7c36b68 // indirect
-	github.com/anyproto/any-store v1.0.2 // indirect
+	github.com/anyproto/any-store v1.0.3 // indirect
 	github.com/anyproto/anytype-publish-server/publishclient v0.0.0-20260925080338-0fb960f00458 // indirect
 	github.com/anyproto/anytype-push-server/pushclient v0.0.0-20260407093150-0b14187dfd27 // indirect
 	github.com/anyproto/go-bip39 v1.0.0 // indirect
@@ -97,9 +100,7 @@ require (
 	github.com/goccy/go-json v0.10.6 // indirect
 	github.com/goccy/go-yaml v1.19.2 // indirect
 	github.com/godbus/dbus/v5 v5.2.2 // indirect
-	github.com/gofrs/flock v0.13.0 // indirect
 	github.com/gogo/googleapis v1.4.1 // indirect
-	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/gogo/status v1.1.1 // indirect
 	github.com/gogs/chardet v0.0.0-20211120154057-b7413eaefb8f // indirect
 	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
@@ -152,7 +153,7 @@ require (
 	github.com/kovidgoyal/imaging v1.6.4 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/libp2p/go-buffer-pool v0.1.0 // indirect
-	github.com/libp2p/go-libp2p v0.49.0 // indirect
+	github.com/libp2p/go-libp2p v0.50.0 // indirect
 	github.com/libp2p/zeroconf/v2 v2.2.0 // indirect
 	github.com/lufia/plan9stats v0.0.0-20260330125221-c963978e514e // indirect
 	github.com/matishsiao/goInfo v0.0.0-20241216093258-66a9250504d6 // indirect
@@ -192,7 +193,7 @@ require (
 	github.com/prometheus/common v0.70.1 // indirect
 	github.com/prometheus/procfs v0.21.1 // indirect
 	github.com/quic-go/qpack v0.6.0 // indirect
-	github.com/quic-go/quic-go v0.62.0 // indirect
+	github.com/quic-go/quic-go v0.63.0 // indirect
 	github.com/quic-go/webtransport-go v0.13.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/rs/cors v1.11.1 // indirect
@@ -239,7 +240,6 @@ require (
 	golang.org/x/net v0.59.0 // indirect
 	golang.org/x/oauth2 v0.37.0 // indirect
 	golang.org/x/sync v0.23.0 // indirect
-	golang.org/x/sys v0.48.0 // indirect
 	golang.org/x/text v0.42.0 // indirect
 	golang.org/x/time v0.16.0 // indirect
 	golang.org/x/tools v0.50.0 // indirect
@@ -268,7 +268,7 @@ replace (
 	github.com/gogo/protobuf => github.com/anyproto/protobuf v1.3.3-0.20240201225420-6e325cf0ac38
 	github.com/ipfs/go-ds-flatfs => github.com/anyproto/go-ds-flatfs v0.0.0-20250828183910-d49f5b2d567f
 	github.com/ipfs/go-log/v2 => github.com/anyproto/go-log/v2 v2.1.2-0.20220721095711-bcf09ff293b2
-	github.com/libp2p/zeroconf/v2 => github.com/anyproto/zeroconf/v2 v2.2.1-0.20260709212715-528971bb5854
+	github.com/libp2p/zeroconf/v2 => github.com/anyproto/zeroconf/v2 v2.2.1-0.20261012094456-27dfb04e233b
 	github.com/multiformats/go-multiaddr => github.com/anyproto/go-multiaddr v0.8.1-0.20250307125826-51ba58e2ebc7
 	google.golang.org/genproto/googleapis/rpc => google.golang.org/genproto/googleapis/rpc v0.0.0-20241021214115-324edc3d5d38
 	gopkg.in/Graylog2/go-gelf.v2 => github.com/anyproto/go-gelf v0.0.0-20210418191311-774bd5b016e7

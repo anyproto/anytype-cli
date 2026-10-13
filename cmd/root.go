@@ -2,14 +2,19 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
 
+	"github.com/anyproto/anytype-cli/cmd/machine"
 	"github.com/anyproto/anytype-cli/core"
+	"github.com/anyproto/anytype-cli/core/automation"
+	"github.com/anyproto/anytype-cli/core/localstate"
 	"github.com/anyproto/anytype-cli/core/output"
 	"github.com/anyproto/anytype-cli/core/updatecheck"
 	"github.com/spf13/cobra"
+	"strconv"
 
 	"github.com/anyproto/anytype-cli/cmd/auth"
 	"github.com/anyproto/anytype-cli/cmd/config"
@@ -51,10 +56,37 @@ var (
 )
 
 func Execute() {
+	if machine.Requested(os.Args[1:]) {
+		engine, closeEngine, err := automation.New()
+		if err != nil {
+			_ = json.NewEncoder(os.Stdout).Encode(automation.Failure(err))
+			os.Exit(1)
+		}
+		code := machine.Execute(context.Background(), os.Args[1:], os.Stdin, os.Stdout, engine)
+		closeEngine()
+		if code != 0 {
+			os.Exit(code)
+		}
+		return
+	}
+	var unlock func()
+	if localstate.HumanMutation(os.Args[1:]) && os.Getenv("ANYTYPE_CLI_LOCK_PARENT_PID") != strconv.Itoa(os.Getppid()) {
+		var err error
+		unlock, err = localstate.Lock(localstate.Dir())
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "Another CLI operation is in progress or instance coordination is unavailable.")
+			os.Exit(1)
+		}
+		defer unlock()
+	}
+
 	rootCmd.SilenceErrors = true
 	rootCmd.SilenceUsage = true
 
 	if err := rootCmd.Execute(); err != nil {
+		if unlock != nil {
+			unlock()
+		}
 		fmt.Fprintf(os.Stderr, "✗ %v\n", err)
 		os.Exit(1)
 	}
@@ -63,6 +95,7 @@ func Execute() {
 func init() {
 	rootCmd.Flags().BoolVarP(&versionFlag, "version", "v", false, "Show version information")
 	rootCmd.Flags().BoolP("help", "h", false, "Show help for command")
+	rootCmd.PersistentFlags().Bool("json", false, "Use the versioned noninteractive JSON interface (see anytype --json --help)")
 	rootCmd.PersistentFlags().BoolVar(&noUpdateCheck, "no-update-check", false, "Disable the background check for new CLI releases")
 
 	rootCmd.AddCommand(

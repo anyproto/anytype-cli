@@ -55,7 +55,7 @@ func TestNew(t *testing.T) {
 }
 
 func TestGetService(t *testing.T) {
-	svc, err := GetService()
+	svc, err := getServiceWithAddressAndLogs("", t.TempDir())
 	if err != nil {
 		t.Fatalf("GetService() error = %v", err)
 	}
@@ -86,7 +86,7 @@ func TestGetServiceWithAddress(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc, err := GetServiceWithAddress(tt.apiAddr)
+			svc, err := getServiceWithAddressAndLogs(tt.apiAddr, t.TempDir())
 			if err != nil {
 				t.Fatalf("GetServiceWithAddress() error = %v", err)
 			}
@@ -209,5 +209,25 @@ func TestStartPrintsStartupBanner(t *testing.T) {
 				t.Errorf("output %q does not contain banner %q", out, tt.want)
 			}
 		})
+	}
+}
+
+func TestAutoLoginChecksAccountActivityAfterAcquiringLock(t *testing.T) {
+	for _, activity := range []bool{false, true} {
+		p := New(config.DefaultAPIAddress)
+		locked, unlocked, active, reads := false, false, false, 0
+		p.lockInstance = func() (func(), error) { locked = true; active = activity; return func() { unlocked = true }, nil }
+		p.accountActivity = func() bool {
+			if !locked {
+				t.Fatal("activity checked before lock")
+			}
+			return active
+		}
+		// Even a regression must not reach the user's real credential store.
+		p.storedAccountKey = func() (string, bool, error) { reads++; return "", false, os.ErrNotExist }
+		p.attemptAutoLogin()
+		if !unlocked || activity && reads != 0 || !activity && reads != 1 {
+			t.Fatal(activity, reads, unlocked)
+		}
 	}
 }

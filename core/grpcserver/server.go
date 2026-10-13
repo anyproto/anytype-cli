@@ -12,6 +12,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/anyproto/anytype-cli/core/runtimeinfo"
+
 	"github.com/anyproto/any-sync/app"
 	"github.com/anyproto/anytype-heart/core/api"
 	"github.com/grpc-ecosystem/go-grpc-middleware"
@@ -33,11 +35,19 @@ var log = logging.Logger("anytype-heart")
 const grpcWebStartedMessagePrefix = "gRPC Web proxy started at: "
 
 type Server struct {
-	mw           *core.Middleware
-	grpcServer   *grpc.Server
-	webServer    *http.Server
-	grpcListener net.Listener
-	webListener  net.Listener
+	mw                 *core.Middleware
+	grpcServer         *grpc.Server
+	webServer          *http.Server
+	grpcListener       net.Listener
+	webListener        net.Listener
+	observation        *runtimeinfo.Recorder
+	observationSender  *event.GrpcSender
+	observationSession *event.SessionServer
+}
+
+// AccountActivity reads this process's observation, never a cached runtime file.
+func (s *Server) AccountActivity() bool {
+	return s.observation != nil && s.observation.AccountActivity()
 }
 
 func NewServer() *Server {
@@ -53,7 +63,8 @@ func (s *Server) Start(grpcAddr, grpcWebAddr string) error {
 
 	log.Info("Starting anytype-heart...")
 	s.mw = core.New()
-	s.mw.SetEventSender(event.NewGrpcSender())
+	s.observationSender = event.NewGrpcSender()
+	s.mw.SetEventSender(s.observationSender)
 
 	var err error
 	s.grpcListener, err = net.Listen("tcp", grpcAddr)
@@ -66,6 +77,13 @@ func (s *Server) Start(grpcAddr, grpcWebAddr string) error {
 		s.grpcListener.Close()
 		return fmt.Errorf("failed to listen on %s: %w", grpcWebAddr, err)
 	}
+	s.observation, err = runtimeinfo.NewDefault()
+	if err != nil {
+		s.grpcListener.Close()
+		s.webListener.Close()
+		return fmt.Errorf("initialize runtime observation: %w", err)
+	}
+	s.observationSession = s.observationSender.SetSessionServer("cli-observation-"+s.observation.Nonce(), &observationStream{recorder: s.observation})
 
 	var unaryInterceptors []grpc.UnaryServerInterceptor
 
@@ -90,6 +108,7 @@ func (s *Server) Start(grpcAddr, grpcWebAddr string) error {
 		"/anytype.ClientCommands/AccountLocalLinkNewChallenge",
 	))
 	unaryInterceptors = append(unaryInterceptors, originInterceptor())
+	unaryInterceptors = append(unaryInterceptors, observationInterceptor(s.observation))
 
 	s.grpcServer = grpc.NewServer(
 		grpc.MaxRecvMsgSize(20*1024*1024),
@@ -149,6 +168,12 @@ func (s *Server) Stop() error {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		_ = s.mw.AppShutdown(ctx, &pb.RpcAppShutdownRequest{})
+	}
+	if s.observationSession != nil {
+		s.observationSender.CloseSessionInstance(s.observationSession)
+	}
+	if s.observation != nil {
+		s.observation.Stopped()
 	}
 
 	log.Info("Servers stopped")

@@ -86,7 +86,7 @@ func Authenticate(accountKey, rootPath, apiAddr, networkConfigPath string) error
 	}
 	if !savedToKeyring {
 		output.Warning("System keyring unavailable (requires D-Bus on Linux, Keychain on macOS, Credential Manager on Windows)")
-		output.Warning("Storing credentials in config file: %s (insecure)", config.GetConfigManager().GetFilePath())
+		output.Warning("Storing credentials in a private local file under the CLI configuration directory")
 	}
 
 	er, err := ListenForEvents(sessionToken)
@@ -197,7 +197,7 @@ func Login(accountKey, rootPath, apiAddr, networkConfigPath string) error {
 	} else if savedToKeyring {
 		output.Success("Account key saved to keychain.")
 	} else {
-		output.Success("Account key saved to config file.")
+		output.Success("Account key saved to private local storage.")
 	}
 
 	return nil
@@ -317,7 +317,7 @@ func CreateWallet(name, rootPath, apiAddr, networkConfigPath string) (string, st
 	}
 	if !savedToKeyring {
 		output.Warning("System keyring unavailable (requires D-Bus on Linux, Keychain on macOS, Credential Manager on Windows)")
-		output.Warning("Storing credentials in config file: %s (insecure)", config.GetConfigManager().GetFilePath())
+		output.Warning("Storing credentials in a private local file under the CLI configuration directory")
 	}
 
 	_, err = ListenForEvents(sessionToken)

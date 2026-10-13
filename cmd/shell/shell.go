@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
+	"github.com/anyproto/anytype-cli/core/localstate"
 	"github.com/anyproto/anytype-cli/core/output"
 	"github.com/anyproto/anytype-cli/core/updatecheck"
 )
@@ -89,6 +90,18 @@ func executeLine(rootCmd *cobra.Command, line string) error {
 		return errAlreadyInShell
 	}
 
+	for _, arg := range args {
+		if arg == "--json" || strings.HasPrefix(arg, "--json=") {
+			return errors.New("run machine commands as a separate anytype process, outside the interactive shell")
+		}
+	}
+	if localstate.HumanMutation(args) {
+		unlock, err := localstate.Lock(localstate.Dir())
+		if err != nil {
+			return err
+		}
+		defer unlock()
+	}
 	resetFlags(rootCmd)
 	rootCmd.SetArgs(args)
 	return rootCmd.Execute()
