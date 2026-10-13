@@ -57,13 +57,14 @@ func (e *Engine) spaces(ctx context.Context, tech string) ([]Space, error) {
 		}
 		// Heart's rejected join retains participant Joining while its account
 		// status becomes SpaceDeleted. Terminal account state wins over it.
-		if account == model.SpaceStatus_SpaceDeleted {
+		switch account {
+		case model.SpaceStatus_SpaceDeleted:
 			if s.ParticipantStatus == model.ParticipantStatus_Joining.String() || s.State == "rejected" {
 				s.State = "rejected"
 			} else {
 				s.State = "removed"
 			}
-		} else if account == model.SpaceStatus_SpaceRemoving {
+		case model.SpaceStatus_SpaceRemoving:
 			s.State = "removed"
 		}
 		if s.State == "unknown" {
