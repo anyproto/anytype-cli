@@ -93,6 +93,7 @@ The CLI embeds the anytype-heart gRPC server directly, creating a self-contained
 - Each command group has its own directory:
   - `auth/`: Authentication commands (login, logout, status)
     - `apikey/`: API key management (create, list, revoke)
+  - `config/`: User settings (list, get, set, unset); keys are registered in `core/config/settings.go`
   - `serve/`: Run the embedded Anytype server in foreground
   - `service/`: System service management (install, uninstall, start, stop, restart, status)
   - `space/`: Space management operations
@@ -108,7 +109,7 @@ The CLI embeds the anytype-heart gRPC server directly, creating a self-contained
 - `stream.go`: Event streaming with EventReceiver and message batching (cheggaaa/mb)
 - `keyring.go`: Secure credential storage using system keyring
 - `apikey.go`: API key generation and management
-- `config/`: Configuration management with constants
+- `config/`: Configuration management with constants. `Config.Settings` holds user settings that survive logout; account state and fallback credentials sit beside it
 - `serviceprogram/`: Cross-platform service implementation (Windows Service, macOS launchd, Linux systemd)
 - `grpcserver/`: Embedded gRPC server implementation
 

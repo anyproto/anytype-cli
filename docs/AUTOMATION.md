@@ -83,6 +83,11 @@ access. `inspect`, `service status`, and `auth status` share an inspection resul
 - `account`: full `id`, observed `display_name`, `authenticated`,
   `observation` (`live` or `configured`), and credential-storage backend;
 - `network`: `id`, `config_path`, and `observation`;
+- `transport`: `prefer_tcp`, its `source` (`env`, `config` or `default`), and
+  `observation:configured`. It is the value the next account start from the
+  calling process would send; `env` is the caller's `ANYTYPE_PREFER_TCP`. Heart
+  does not report the transport the running account uses. An invalid
+  `ANYTYPE_PREFER_TCP` adds `next_action`;
 - `api`: effective `origin`, `listen_address`, `bound`, `observation`, and
   `ready:false`/`readiness:requires_integration_key_probe`, plus
   `binding_observation` and an actionable `next_action` when unverified;
@@ -216,6 +221,12 @@ and operation ID; private stdin can be omitted once the credential is stored.
 Network file paths are normalized before comparing effective settings; an exact
 replay of a relative path remains valid after its absolute form was saved.
 The selected file's content hash is also bound to the operation.
+
+Account creation and selection send the `prefer-tcp` setting (see
+`anytype config`), overridden by `ANYTYPE_PREFER_TCP` in the calling process.
+It is not bound to the operation, so a resumed operation sends the current
+value. An invalid `ANYTYPE_PREFER_TCP` fails with `invalid_environment` before
+any mutation.
 
 Wallet recovery material is durably saved before account creation. Exact live
 identity plus observed requested name can reconcile a lost create response.

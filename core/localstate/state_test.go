@@ -35,3 +35,21 @@ func TestLockAndAtomicPrivateFiles(t *testing.T) {
 		t.Fatal("private file roundtrip", v, err)
 	}
 }
+
+func TestHumanMutationConfig(t *testing.T) {
+	tests := []struct {
+		args []string
+		want bool
+	}{
+		{[]string{"config", "list"}, false},
+		{[]string{"config", "get", "prefer-tcp"}, false},
+		{[]string{"config", "set", "prefer-tcp", "true"}, true},
+		{[]string{"config", "unset", "prefer-tcp"}, true},
+		{[]string{"config", "set", "--help"}, false},
+	}
+	for _, tt := range tests {
+		if got := HumanMutation(tt.args); got != tt.want {
+			t.Errorf("HumanMutation(%q) = %v, want %v", tt.args, got, tt.want)
+		}
+	}
+}

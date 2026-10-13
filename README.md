@@ -12,6 +12,7 @@ A command-line interface for interacting with [Anytype](https://github.com/anypr
   - [Authentication](#authentication)
   - [API Keys](#api-keys)
   - [Space Management](#space-management)
+  - [Settings](#settings)
 - [Development](#development)
   - [Project Structure](#project-structure)
   - [Building from Source](#building-from-source)
@@ -207,6 +208,38 @@ anytype space join <invite-link>
 anytype space leave <space-id>
 ```
 
+### Settings
+
+Settings are saved in `~/.anytype/config.json` and survive logout:
+
+```bash
+# Show every setting, its value and where the value comes from
+anytype config list
+
+# Print one value
+anytype config get prefer-tcp
+
+# Change a setting, or return it to the default
+anytype config set prefer-tcp true
+anytype config unset prefer-tcp
+```
+
+| Key | Default | Description |
+| --- | --- | --- |
+| `listen-address` | `127.0.0.1:31012` | JSON API listen address. Change it with `--listen-address` (see [Network Configuration](#network-configuration)). |
+| `prefer-tcp` | `false` | Connect to sync nodes and peers over TCP before QUIC (UDP). QUIC is still used when TCP fails. Override with `ANYTYPE_PREFER_TCP=true` or `false`. |
+
+#### Sync stalls on networks that block UDP
+
+Anytype connects over QUIC, which runs on UDP, and falls back to TCP when QUIC fails. Some firewalls, VPNs and corporate networks block or throttle UDP, so every connection waits for QUIC first. If sync is slow or stalls on such a network, try TCP first:
+
+```bash
+anytype config set prefer-tcp true
+anytype service restart   # or stop and start `anytype serve`
+```
+
+The setting applies the next time the account starts. In Docker, set `ANYTYPE_PREFER_TCP=true` in the container's environment instead. `anytype auth status` shows the setting and where its value comes from.
+
 ## Development
 
 ### Project Structure
@@ -215,6 +248,7 @@ anytype space leave <space-id>
 anytype-cli/
 ├── cmd/              # CLI commands
 │   ├── auth/         # Authentication commands
+│   ├── config/       # Settings
 │   ├── serve/        # Server command
 │   ├── service/      # Service management
 │   ├── space/        # Space management
