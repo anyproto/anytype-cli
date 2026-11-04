@@ -174,9 +174,6 @@ install_binary() {
     if ! chmod +x "$INSTALL_DIR/$BINARY_NAME"; then
         error "Failed to make binary executable"
     fi
-    
-    info "Creating symlink 'any' -> 'anytype'"
-    ln -sf "$INSTALL_DIR/$BINARY_NAME" "$INSTALL_DIR/any"
 }
 
 check_path() {
@@ -208,13 +205,11 @@ check_path() {
 
 verify_installation() {
     if command -v "$BINARY_NAME" &> /dev/null; then
-        success "${BINARY_NAME} installed successfully! (available as 'anytype' and 'any')"
+        success "${BINARY_NAME} installed successfully!"
     else
         echo
         info "Run the following to use ${BINARY_NAME}:"
         echo "  $INSTALL_DIR/$BINARY_NAME"
-        echo "  or"
-        echo "  $INSTALL_DIR/any"
     fi
 }
 
@@ -241,7 +236,7 @@ main() {
     check_path
     verify_installation
     echo
-    info "Get started with: ${BINARY_NAME} --help (or 'any --help')"
+    info "Get started with: ${BINARY_NAME} --help"
     info "Learn more: https://github.com/${REPO_OWNER}/${REPO_NAME}"
 }
 

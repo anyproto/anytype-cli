@@ -89,8 +89,7 @@ install: build ## Install to ~/.local/bin (user installation)
 	@echo "Installing anytype-cli..."
 	@mkdir -p $$HOME/.local/bin
 	@cp dist/anytype $$HOME/.local/bin/anytype
-	@ln -sf $$HOME/.local/bin/anytype $$HOME/.local/bin/any
-	@echo "Installed to $$HOME/.local/bin/ (available as 'anytype' and 'any')"
+	@echo "Installed to $$HOME/.local/bin/ (available as 'anytype')"
 	@echo "Make sure $$HOME/.local/bin is in your PATH"
 	@echo ""
 	@echo "Usage:"
@@ -100,7 +99,6 @@ install: build ## Install to ~/.local/bin (user installation)
 uninstall: ## Uninstall from ~/.local/bin
 	@echo "Uninstalling anytype-cli..."
 	@rm -f $$HOME/.local/bin/anytype
-	@rm -f $$HOME/.local/bin/any
 	@echo "Uninstalled from $$HOME/.local/bin/"
 
 ##@ Development
