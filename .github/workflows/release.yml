@@ -162,7 +162,8 @@ jobs:
             os: ubuntu-24.04-arm
             musl_cc: aarch64-linux-musl-gcc
           - target: windows-amd64
-            os: ubuntu-latest
+            # Use Homebrew's UCRT toolchain to avoid tantivy's MSVCRT heap mismatch (#63).
+            os: macos-15
 
     steps:
       - name: Checkout release revision
@@ -186,11 +187,10 @@ jobs:
           path: dist/tantivy-${{ matrix.target }}
           key: tantivy-${{ matrix.target }}-${{ steps.tantivy.outputs.version }}
 
-      - name: Install mingw toolchain
+      - name: Install UCRT mingw toolchain
         if: matrix.target == 'windows-amd64'
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends gcc-mingw-w64-x86-64
+          brew install mingw-w64
 
       - name: Build
         if: matrix.musl_cc == ''
@@ -230,6 +230,24 @@ jobs:
                    make "build-${TARGET}"'
           sudo chown -R "$(id -u):$(id -g)" "$GO_MOD_CACHE" "$GO_BUILD_CACHE" dist
           ls -la dist/
+
+      - name: Verify Windows C runtime
+        if: matrix.target == 'windows-amd64'
+        shell: bash
+        run: |
+          set -euo pipefail
+          WINDOWS_IMPORTS="$(x86_64-w64-mingw32-objdump -p dist/anytype-windows-amd64.exe)"
+
+          if grep -Eiq 'DLL Name:[[:space:]]+msvcrt\.dll[[:space:]]*$' <<< "$WINDOWS_IMPORTS"; then
+            echo "::error::Windows binary imports msvcrt.dll, which causes tantivy heap corruption (#63). Use a UCRT toolchain."
+            exit 1
+          fi
+          if ! grep -Eiq 'DLL Name:[[:space:]]+(api-ms-win-crt-[^[:space:]]+|ucrtbase)\.dll[[:space:]]*$' <<< "$WINDOWS_IMPORTS"; then
+            echo "::error::Windows binary must import the Universal C Runtime (api-ms-win-crt-* or ucrtbase.dll)."
+            exit 1
+          fi
+
+          echo "Verified Windows binary uses UCRT without msvcrt.dll"
 
       - name: Compress binary
         env:
