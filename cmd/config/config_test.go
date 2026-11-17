@@ -12,14 +12,17 @@ import (
 	coreconfig "github.com/anyproto/anytype-cli/core/config"
 )
 
-// TestMain points HOME at a temp dir before the config manager first reads
-// it, so the commands work on a throwaway config file.
+// Isolate the config manager's home directory on Unix and Windows.
 func TestMain(m *testing.M) {
 	home, err := os.MkdirTemp("", "anytype-config-cmd")
 	if err != nil {
 		panic(err)
 	}
-	os.Setenv("HOME", home)
+	for _, name := range []string{"HOME", "USERPROFILE"} {
+		if err := os.Setenv(name, home); err != nil {
+			panic(err)
+		}
+	}
 	code := m.Run()
 	os.RemoveAll(home)
 	os.Exit(code)
@@ -75,6 +78,7 @@ func runConfig(t *testing.T, args ...string) (stdout, stderr string, err error) 
 		done := make(chan struct{})
 		go func() {
 			_, _ = io.Copy(&buf, r)
+			r.Close()
 			close(done)
 		}()
 		return func() string {
@@ -210,6 +214,11 @@ func TestConfigInvalidEnvWarns(t *testing.T) {
 	stdout, stderr, err := runConfig(t, "get", "prefer-tcp")
 	if err != nil || stdout != "true\n" || !strings.Contains(stderr, "ignoring "+coreconfig.PreferTcpEnv) {
 		t.Errorf("get = (%q, stderr %q, %v), want the saved value and a warning", stdout, stderr, err)
+	}
+
+	_, stderr, err = runConfig(t, "unset", "prefer-tcp")
+	if err != nil || !strings.Contains(stderr, "ignoring "+coreconfig.PreferTcpEnv) || strings.Contains(stderr, "overrides the saved value") {
+		t.Errorf("unset = (stderr %q, %v), want a warning that the invalid override was ignored", stderr, err)
 	}
 }
 

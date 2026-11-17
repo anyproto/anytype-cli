@@ -113,43 +113,17 @@ doesn't change.
 
 ### `anytype config`
 
-The command is unhidden and manages user settings only:
-
-```
-anytype config list                 # every key, its effective value and source
-anytype config get <key>            # the effective value only, for scripts
-anytype config set <key> <value>
-anytype config unset <key>          # back to the default
-```
-
-Keys:
-
-| Key | Values | Env override | `set`/`unset` |
-|---|---|---|---|
-| `listen-address` | `host:port` | — | refused, with a hint to use `--listen-address` on `service install`, `serve`, `auth login` or `auth create` |
-| `prefer-tcp` | `true`/`false` (anything `strconv.ParseBool` accepts) | `ANYTYPE_PREFER_TCP` | allowed |
+The public command manages user settings. See the [README](../../README.md#settings)
+for supported keys and examples.
 
 `listen-address` is read-only here because the installed service definition
 can carry its own `--listen-address`; changing only the config would leave the
 service and the account disagreeing on the JSON API address (and automation
 reports `service_binding_conflict`).
 
-Output:
-
-```
-$ anytype config list
-KEY             VALUE            SOURCE
-listen-address  127.0.0.1:31012  default
-prefer-tcp      true             config
-
-$ anytype config set prefer-tcp true
-✓ prefer-tcp = true
-Applies the next time the account starts. To apply it now, restart the server:
-  anytype service restart   (or stop and start 'anytype serve')
-```
-
-When `ANYTYPE_PREFER_TCP` is set in the current environment, `set` and
-`unset` warn that it overrides the saved value for commands run here.
+When the current environment supplies a valid `ANYTYPE_PREFER_TCP` override,
+`set` and `unset` report it. An invalid value produces the same warning as
+`get`.
 
 Removed:
 
@@ -175,29 +149,3 @@ share it) gains:
 
 `source` reflects the calling process's environment. An invalid
 environment value adds `next_action`.
-
-### Docs
-
-- README: a Configuration section (`config` commands, keys, env override)
-  and a troubleshooting line for stalled sync on networks that block UDP.
-- SELF-HOSTED.md: a troubleshooting entry for nodes whose QUIC (UDP) ports
-  aren't reachable.
-- AUTOMATION.md: document `transport` in the inspection result and
-  `invalid_environment`.
-- CLAUDE.md: list the `config/` command group.
-
-## Tests
-
-- `config`: `Settings` JSON round-trip keeps the flat format;
-  `ClearAccount` keeps every setting and deletes the file when none remain;
-  `UpdateSettings` persists.
-- `ResolvePreferTcp`: table over env unset/empty/true/false/invalid ×
-  stored true/false.
-- Setting registry: `set`/`unset` for `prefer-tcp`, invalid value, read-only
-  `listen-address`, unknown key.
-- `cmd/config`: `list`, `get`, `set`, `unset` against a temp `HOME`.
-- `localstate.HumanMutation`: `config list` and `config get` don't lock;
-  `config set` and `config unset` do.
-- Automation: `AccountSelect`/`AccountCreate` requests carry
-  `PreferYamuxTransport` from config and env; invalid env fails with
-  `invalid_environment`; `inspect` reports `transport`.

@@ -1,8 +1,6 @@
 package cmdutil
 
 import (
-	"os"
-
 	"github.com/spf13/cobra"
 
 	"github.com/anyproto/anytype-cli/core/config"
@@ -37,7 +35,11 @@ func SourceLabel(source config.Source, env string) string {
 // ExplainSettingChange tells the user when a saved change takes effect.
 func ExplainSettingChange(s config.Setting) {
 	if s.Env != "" {
-		if value := os.Getenv(s.Env); value != "" {
+		value, source, err := s.Resolve(config.Settings{})
+		switch {
+		case err != nil:
+			output.Warning("%v", err)
+		case source == config.SourceEnv:
 			output.Warning("%s=%s is set here and overrides the saved value for commands run from this environment.", s.Env, value)
 		}
 	}
