@@ -10,28 +10,28 @@ import (
 
 func NewSetCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "set <key> <value>",
-		Short: "Set a configuration value",
-		Long:  `Set a specific configuration value`,
-		Args:  cmdutil.ExactArgs(2, "cannot set config: key and value arguments required"),
+		Use:               "set <key> <value>",
+		Short:             "Save a setting",
+		Args:              cmdutil.ExactArgs(2, "cannot set config: key and value arguments required"),
+		ValidArgsFunction: cmdutil.SettingKeyCompletion(true),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			key := args[0]
-			value := args[1]
-
-			switch key {
-			case "accountId":
-				if err := config.SetAccountIdToConfig(value); err != nil {
-					return output.Error("Failed to set account Id: %w", err)
-				}
-			case "techSpaceId":
-				if err := config.SetTechSpaceIdToConfig(value); err != nil {
-					return output.Error("Failed to set tech space Id: %w", err)
-				}
-			default:
-				return output.Error("unknown config key: %s", key)
+			s, err := config.LookupSetting(args[0])
+			if err != nil {
+				return output.Error("%w", err)
 			}
 
-			output.Success("Set %s = %s", key, value)
+			var saved string
+			err = config.UpdateSettingsInConfig(func(settings *config.Settings) error {
+				var err error
+				saved, err = s.Set(settings, args[1])
+				return err
+			})
+			if err != nil {
+				return output.Error("Failed to set %s: %w", s.Key, err)
+			}
+
+			output.Success("%s = %s", s.Key, saved)
+			cmdutil.ExplainSettingChange(s)
 			return nil
 		},
 	}

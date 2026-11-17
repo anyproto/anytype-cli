@@ -128,7 +128,7 @@ func HumanMutation(args []string) bool {
 	case "service":
 		return words[1] != "status"
 	case "config":
-		return words[1] != "get"
+		return words[1] != "get" && words[1] != "list"
 	}
 	return false
 }

@@ -24,6 +24,16 @@ func determineNetworkMode(networkConfigPath string) pb.RpcAccountNetworkMode {
 	return pb.RpcAccount_DefaultConfig
 }
 
+// resolvePreferTcp reads the transport preference sent when the account
+// starts. A bad override only warns: service auto-login runs through here too.
+func resolvePreferTcp() bool {
+	preferTcp, _, err := config.PreferTcp()
+	if err != nil {
+		output.Warning("prefer-tcp: %v", err)
+	}
+	return preferTcp
+}
+
 // Authenticate performs the full authentication flow for a bot account using an account key.
 // This includes wallet recovery, session creation, account recovery, account selection, and config persistence.
 // If networkConfigPath is provided, connects to that custom network.
@@ -36,6 +46,7 @@ func Authenticate(accountKey, rootPath, apiAddr, networkConfigPath string) error
 	}
 
 	networkMode := determineNetworkMode(networkConfigPath)
+	preferTcp := resolvePreferTcp()
 
 	var sessionToken string
 	err := GRPCCallNoAuth(func(ctx context.Context, client service.ClientCommandsClient) error {
@@ -119,6 +130,7 @@ func Authenticate(accountKey, rootPath, apiAddr, networkConfigPath string) error
 			RootPath:                    rootPath,
 			NetworkMode:                 networkMode,
 			NetworkCustomConfigFilePath: networkConfigPath,
+			PreferYamuxTransport:        preferTcp,
 		})
 		if err != nil {
 			return fmt.Errorf("failed to select account: %w", err)
@@ -273,6 +285,7 @@ func CreateWallet(name, rootPath, apiAddr, networkConfigPath string) (string, st
 	}
 
 	networkMode := determineNetworkMode(networkConfigPath)
+	preferTcp := resolvePreferTcp()
 
 	var sessionToken string
 	var accountKey string
@@ -333,6 +346,7 @@ func CreateWallet(name, rootPath, apiAddr, networkConfigPath string) (string, st
 			JsonApiListenAddr:           apiAddr,
 			NetworkMode:                 networkMode,
 			NetworkCustomConfigFilePath: networkConfigPath,
+			PreferYamuxTransport:        preferTcp,
 		})
 		if err != nil {
 			return fmt.Errorf("account creation failed: %w", err)
@@ -352,6 +366,7 @@ func CreateWallet(name, rootPath, apiAddr, networkConfigPath string) (string, st
 			RootPath:                    rootPath,
 			NetworkMode:                 networkMode,
 			NetworkCustomConfigFilePath: networkConfigPath,
+			PreferYamuxTransport:        preferTcp,
 		})
 		if err != nil {
 			return fmt.Errorf("failed to select account: %w", err)

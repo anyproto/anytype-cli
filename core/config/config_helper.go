@@ -180,3 +180,12 @@ func SetApiListenAddrToConfig(addr string) error {
 
 	return configMgr.SetApiListenAddr(addr)
 }
+
+func UpdateSettingsInConfig(fn func(*Settings) error) error {
+	configMgr := GetConfigManager()
+	if err := configMgr.Load(); err != nil {
+		return fmt.Errorf("failed to load config: %w", err)
+	}
+
+	return configMgr.UpdateSettings(fn)
+}

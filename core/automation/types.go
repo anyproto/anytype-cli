@@ -178,6 +178,17 @@ func capabilities() map[string]any {
 	}
 }
 
+// transportJSON reports the transport preference that an account start from
+// this process would send. Heart doesn't expose the one in use.
+func transportJSON(s config.Settings) map[string]any {
+	preferTcp, source, err := config.ResolvePreferTcp(s)
+	out := map[string]any{"prefer_tcp": preferTcp, "source": string(source), "observation": "configured"}
+	if err != nil {
+		out["next_action"] = "Set " + config.PreferTcpEnv + " to true or false, or unset it."
+	}
+	return out
+}
+
 func apiOrigin(addr string) string {
 	host, port, err := net.SplitHostPort(addr)
 	if err != nil {

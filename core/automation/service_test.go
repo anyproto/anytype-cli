@@ -68,7 +68,7 @@ func TestServiceDefinitionInheritsSavedListenAddress(t *testing.T) {
 			if err := os.WriteFile(exe, []byte("fixture"), 0700); err != nil {
 				t.Fatal(err)
 			}
-			if err := localstate.WriteJSON(filepath.Join(dir, config.AnytypeDirName, config.ConfigFileName), config.Config{ApiListenAddr: "127.0.0.1:4500"}); err != nil {
+			if err := localstate.WriteJSON(filepath.Join(dir, config.AnytypeDirName, config.ConfigFileName), config.Config{Settings: config.Settings{ApiListenAddr: "127.0.0.1:4500"}}); err != nil {
 				t.Fatal(err)
 			}
 			definition := filepath.Join(dir, "Library/LaunchAgents/anytype.plist")

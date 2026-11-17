@@ -7,6 +7,7 @@ import (
 	"github.com/anyproto/anytype-heart/pb/service"
 	"github.com/spf13/cobra"
 
+	"github.com/anyproto/anytype-cli/cmd/cmdutil"
 	"github.com/anyproto/anytype-cli/core"
 	"github.com/anyproto/anytype-cli/core/config"
 	"github.com/anyproto/anytype-cli/core/output"
@@ -93,6 +94,12 @@ func NewStatusCmd() *cobra.Command {
 				apiAddr := config.ResolveAPIListenAddr("", false, storedAddr)
 				output.Print("  - JSON API: \033[1m%s\033[0m", config.APIURL(apiAddr))
 			}
+
+			preferTcp, source, err := config.PreferTcp()
+			if err != nil {
+				output.Warning("prefer-tcp: %v", err)
+			}
+			output.Print("  - Prefer TCP: \033[1m%v\033[0m (%s)", preferTcp, cmdutil.SourceLabel(source, config.PreferTcpEnv))
 
 			if hasAccountKey {
 				if len(accountKey) > 8 {

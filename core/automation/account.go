@@ -50,6 +50,10 @@ func (e *Engine) authMutation(ctx context.Context, r Request, op *operation, ret
 	if err != nil {
 		return fail(err)
 	}
+	preferTcp, _, envErr := config.ResolvePreferTcp(c.Settings)
+	if envErr != nil {
+		return fail(problem("invalid_environment", config.PreferTcpEnv+" must be true or false.", 2))
+	}
 	s, err := e.live(ctx)
 	if err != nil {
 		return fail(err)
@@ -314,7 +318,7 @@ func (e *Engine) authMutation(ctx context.Context, r Request, op *operation, ret
 		if err = e.saveOp(op, "account_sent"); err != nil {
 			return fail(err)
 		}
-		result, rpcErr := e.Client.AccountCreate(authCtx, &pb.RpcAccountCreateRequest{Name: r.Name, StorePath: e.DataPath, JsonApiListenAddr: addr, NetworkMode: mode, NetworkCustomConfigFilePath: network})
+		result, rpcErr := e.Client.AccountCreate(authCtx, &pb.RpcAccountCreateRequest{Name: r.Name, StorePath: e.DataPath, JsonApiListenAddr: addr, NetworkMode: mode, NetworkCustomConfigFilePath: network, PreferYamuxTransport: preferTcp})
 		if rpcErr != nil {
 			return fail(rpcError(rpcErr))
 		}
@@ -328,7 +332,7 @@ func (e *Engine) authMutation(ctx context.Context, r Request, op *operation, ret
 		if err = e.saveOp(op, "select_sent"); err != nil {
 			return fail(err)
 		}
-		result, rpcErr := e.Client.AccountSelect(authCtx, &pb.RpcAccountSelectRequest{Id: op.AccountId, RootPath: e.DataPath, JsonApiListenAddr: addr, NetworkMode: mode, NetworkCustomConfigFilePath: network})
+		result, rpcErr := e.Client.AccountSelect(authCtx, &pb.RpcAccountSelectRequest{Id: op.AccountId, RootPath: e.DataPath, JsonApiListenAddr: addr, NetworkMode: mode, NetworkCustomConfigFilePath: network, PreferYamuxTransport: preferTcp})
 		if rpcErr != nil {
 			return fail(rpcError(rpcErr))
 		}

@@ -1,8 +1,11 @@
 package config
 
 import (
+	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 )
 
@@ -116,13 +119,14 @@ func TestApiListenAddrPersists(t *testing.T) {
 	}
 }
 
-func TestClearAccountKeepsApiListenAddr(t *testing.T) {
+func TestClearAccountKeepsSettings(t *testing.T) {
+	settings := Settings{ApiListenAddr: "0.0.0.0:4000", PreferTcp: true}
 	cm := newTestConfigManager(t, &Config{
-		AccountId:     "acc",
-		TechSpaceId:   "tech",
-		AccountKey:    "key",
-		SessionToken:  "token",
-		ApiListenAddr: "0.0.0.0:4000",
+		AccountId:    "acc",
+		TechSpaceId:  "tech",
+		AccountKey:   "key",
+		SessionToken: "token",
+		Settings:     settings,
 	})
 	if err := cm.Save(); err != nil {
 		t.Fatalf("Save: %v", err)
@@ -136,9 +140,87 @@ func TestClearAccountKeepsApiListenAddr(t *testing.T) {
 	if err := cm2.Load(); err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	want := Config{ApiListenAddr: "0.0.0.0:4000"}
+	want := Config{Settings: settings}
 	if got := *cm2.Get(); got != want {
 		t.Errorf("config after ClearAccount = %+v, want %+v", got, want)
+	}
+}
+
+func TestSettingsStayAtTopLevelOfFile(t *testing.T) {
+	cm := newTestConfigManager(t, &Config{
+		AccountId: "acc",
+		Settings:  Settings{ApiListenAddr: "0.0.0.0:4000", PreferTcp: true},
+	})
+	if err := cm.Save(); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	data, err := os.ReadFile(cm.filePath)
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	var raw map[string]any
+	if err := json.Unmarshal(data, &raw); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+	want := map[string]any{"accountId": "acc", "apiListenAddr": "0.0.0.0:4000", "preferTcp": true}
+	if !reflect.DeepEqual(raw, want) {
+		t.Errorf("config file = %v, want %v", raw, want)
+	}
+}
+
+func TestUpdateSettings(t *testing.T) {
+	cm := newTestConfigManager(t, &Config{AccountId: "acc"})
+
+	if err := cm.UpdateSettings(func(s *Settings) error {
+		s.PreferTcp = true
+		return nil
+	}); err != nil {
+		t.Fatalf("UpdateSettings: %v", err)
+	}
+
+	cm2 := &ConfigManager{config: &Config{}, filePath: cm.filePath}
+	if err := cm2.Load(); err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if got := *cm2.Get(); got != (Config{AccountId: "acc", Settings: Settings{PreferTcp: true}}) {
+		t.Errorf("config after UpdateSettings = %+v", got)
+	}
+
+	failed := errors.New("rejected")
+	err := cm.UpdateSettings(func(s *Settings) error {
+		s.PreferTcp = false
+		return failed
+	})
+	if !errors.Is(err, failed) {
+		t.Fatalf("UpdateSettings error = %v, want %v", err, failed)
+	}
+	if !cm.Get().PreferTcp {
+		t.Error("UpdateSettings changed the settings although fn failed")
+	}
+}
+
+func TestLoadDropsKeysRemovedFromFile(t *testing.T) {
+	cm := newTestConfigManager(t, &Config{AccountId: "acc", Settings: Settings{PreferTcp: true}})
+	if err := os.WriteFile(cm.filePath, []byte(`{"accountId":"acc"}`), 0600); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	if err := cm.Load(); err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cm.Get().PreferTcp {
+		t.Error("PreferTcp survived Load although the file no longer has it")
+	}
+
+	if err := os.Remove(cm.filePath); err != nil {
+		t.Fatalf("Remove: %v", err)
+	}
+	if err := cm.Load(); err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if got := *cm.Get(); got != (Config{}) {
+		t.Errorf("config after loading a missing file = %+v, want empty", got)
 	}
 }
 
