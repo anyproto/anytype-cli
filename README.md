@@ -264,7 +264,7 @@ anytype-cli/
 
 #### Prerequisites
 
-- Go 1.26.5 or later
+- Go 1.27.4 or later
 - Git
 - Make
 - C compiler (gcc or clang, for CGO)
