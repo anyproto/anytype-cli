@@ -21,10 +21,11 @@ func NewJoinCmd() *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "join <invite-link>",
-		Short: "Join a space",
-		Long:  "Join a space using an invite link (https://<host>/<cid>#<key> or anytype://invite/?cid=<cid>&key=<key>)",
-		Args:  cmdutil.ExactArgs(1, "cannot join space: invite-link argument required"),
+		Use:     "join <invite-link>",
+		Short:   "Join a space",
+		Long:    "Join a space using an invite link (https://<host>/<cid>#<key> or anytype://invite/?cid=<cid>&key=<key>)",
+		Example: `  anytype space join "anytype://invite/?cid=<cid>&key=<key>"`,
+		Args:    cmdutil.ExactArgs(1, "cannot join space: invite-link argument required"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			input := args[0]
 			var spaceId string
@@ -133,7 +134,7 @@ func parseInviteLink(input string) (cid string, key string, err error) {
 			return "", "", fmt.Errorf("invite link missing cid parameter")
 		}
 		if key == "" {
-			return "", "", fmt.Errorf("invite link missing key parameter")
+			return "", "", fmt.Errorf("invite link missing key parameter (if pasting into a shell, quote the entire invite URL)")
 		}
 		return cid, key, nil
 
