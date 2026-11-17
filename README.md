@@ -44,7 +44,7 @@ anytype service start
 anytype auth create <name>
 
 # Join a space via invite link
-anytype space join <invite-link>
+anytype space join "<invite-link>"
 
 # Verify the space was joined
 anytype space list
@@ -201,7 +201,7 @@ Work with Anytype spaces:
 anytype space list
 
 # Join a space
-anytype space join <invite-link>
+anytype space join "<invite-link>"
 
 # Leave a space
 anytype space leave <space-id>
